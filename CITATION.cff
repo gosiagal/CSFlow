@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "CSFlow: Aligning Flow Matching with Human Contrast Sensitivity"
+authors:
+  - family-names: Galinska
+    given-names: Malgorzata
+  - family-names: Pogodzinski
+    given-names: Bart
+  - family-names: Lenssen
+    given-names: Jan Eric
+date-released: 2026-06-07
+url: "https://arxiv.org/abs/2606.08833"
+identifiers:
+  - type: other
+    value: "arXiv:2606.08833"
+    description: "arXiv ID"
+license: MIT
+preferred-citation:
+  type: generic
+  title: "CSFlow: Aligning Flow Matching with Human Contrast Sensitivity"
+  authors:
+    - family-names: Galinska
+      given-names: Malgorzata
+    - family-names: Pogodzinski
+      given-names: Bart
+    - family-names: Lenssen
+      given-names: Jan Eric
+  year: 2026
+  url: "https://arxiv.org/abs/2606.08833"
