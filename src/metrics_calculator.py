@@ -2,6 +2,7 @@
 
 import numpy as np
 
+
 class MetricsCalculator:
     """
     Class for evaluating spectral metrics RSignal, ΔRSignal
@@ -54,20 +55,20 @@ class MetricsCalculator:
 
         return np.clip(retained, 0.0, 1.0)
 
-
     def _compute_all_retained_signal(self) -> np.ndarray:
         """
         Compute retained signal for all timesteps (fraction of power retained above threshold).
         """
-        self.retained_signal = np.array([self.calc_retained_signal(t) for t in self.timesteps])
+        self.retained_signal = np.array(
+            [self.calc_retained_signal(t) for t in self.timesteps]
+        )
         return self.retained_signal
-
 
     def _compute_delta_retained_signal(self) -> np.ndarray:
         """Compute Δ retained signal (difference between consecutive timesteps)."""
         if self.retained_signal is None:
             self._compute_all_retained_signal()
-        
+
         delta = np.diff(self.retained_signal, axis=0)
         delta = np.maximum(delta, 0.0)
         self.delta_retained_signal = delta

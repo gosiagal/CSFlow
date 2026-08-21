@@ -7,19 +7,21 @@ from math import pi
 
 import numpy as np
 import torch
-from torch import nn
 from einops import rearrange, repeat
+from torch import nn
 
 
 def broadcat(tensors, dim=-1):
     num_tensors = len(tensors)
     shape_lens = set(list(map(lambda t: len(t.shape), tensors)))
-    assert len(shape_lens) == 1, 'tensors must all have the same number of dimensions'
+    assert len(shape_lens) == 1, "tensors must all have the same number of dimensions"
     shape_len = list(shape_lens)[0]
     dim = (dim + shape_len) if dim < 0 else dim
     dims = list(zip(*map(lambda t: list(t.shape), tensors)))
     expandable_dims = [(i, val) for i, val in enumerate(dims) if i != dim]
-    assert all([*map(lambda t: len(set(t[1])) <= 2, expandable_dims)]), 'invalid dimensions for broadcastable concatentation'
+    assert all(
+        [*map(lambda t: len(set(t[1])) <= 2, expandable_dims)]
+    ), "invalid dimensions for broadcastable concatentation"
     max_dims = list(map(lambda t: (t[0], max(t[1])), expandable_dims))
     expanded_dims = list(map(lambda t: (t[0], (t[1],) * num_tensors), max_dims))
     expanded_dims.insert(dim, (dim, dims[dim]))
@@ -29,10 +31,10 @@ def broadcat(tensors, dim=-1):
 
 
 def rotate_half(x):
-    x = rearrange(x, '... (d r) -> ... d r', r=2)
+    x = rearrange(x, "... (d r) -> ... d r", r=2)
     x1, x2 = x.unbind(dim=-1)
     x = torch.stack((-x2, x1), dim=-1)
-    return rearrange(x, '... d r -> ... (d r)')
+    return rearrange(x, "... d r -> ... (d r)")
 
 
 class VisionRotaryEmbedding(nn.Module):
@@ -42,7 +44,7 @@ class VisionRotaryEmbedding(nn.Module):
         pt_seq_len,
         ft_seq_len=None,
         custom_freqs=None,
-        freqs_for='lang',
+        freqs_for="lang",
         theta=10000,
         max_freq=10,
         num_freqs=1,
@@ -50,24 +52,26 @@ class VisionRotaryEmbedding(nn.Module):
         super().__init__()
         if custom_freqs:
             freqs = custom_freqs
-        elif freqs_for == 'lang':
-            freqs = 1. / (theta ** (torch.arange(0, dim, 2)[:(dim // 2)].float() / dim))
-        elif freqs_for == 'pixel':
-            freqs = torch.linspace(1., max_freq / 2, dim // 2) * pi
-        elif freqs_for == 'constant':
+        elif freqs_for == "lang":
+            freqs = 1.0 / (
+                theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim)
+            )
+        elif freqs_for == "pixel":
+            freqs = torch.linspace(1.0, max_freq / 2, dim // 2) * pi
+        elif freqs_for == "constant":
             freqs = torch.ones(num_freqs).float()
         else:
-            raise ValueError(f'unknown modality {freqs_for}')
+            raise ValueError(f"unknown modality {freqs_for}")
 
         if ft_seq_len is None:
             ft_seq_len = pt_seq_len
         t = torch.arange(ft_seq_len) / ft_seq_len * pt_seq_len
 
-        freqs_h = torch.einsum('..., f -> ... f', t, freqs)
-        freqs_h = repeat(freqs_h, '... n -> ... (n r)', r=2)
+        freqs_h = torch.einsum("..., f -> ... f", t, freqs)
+        freqs_h = repeat(freqs_h, "... n -> ... (n r)", r=2)
 
-        freqs_w = torch.einsum('..., f -> ... f', t, freqs)
-        freqs_w = repeat(freqs_w, '... n -> ... (n r)', r=2)
+        freqs_w = torch.einsum("..., f -> ... f", t, freqs)
+        freqs_w = repeat(freqs_w, "... n -> ... (n r)", r=2)
 
         freqs = broadcat((freqs_h[:, None, :], freqs_w[None, :, :]), dim=-1)
 
@@ -77,8 +81,14 @@ class VisionRotaryEmbedding(nn.Module):
     def forward(self, t, start_index=0):
         rot_dim = self.freqs_cos.shape[-1]
         end_index = start_index + rot_dim
-        assert rot_dim <= t.shape[-1], f'feature dimension {t.shape[-1]} is not of sufficient size to rotate in all the positions {rot_dim}'
-        t_left, t, t_right = t[..., :start_index], t[..., start_index:end_index], t[..., end_index:]
+        assert (
+            rot_dim <= t.shape[-1]
+        ), f"feature dimension {t.shape[-1]} is not of sufficient size to rotate in all the positions {rot_dim}"
+        t_left, t, t_right = (
+            t[..., :start_index],
+            t[..., start_index:end_index],
+            t[..., end_index:],
+        )
         t = (t * self.freqs_cos) + (rotate_half(t) * self.freqs_sin)
         return torch.cat((t_left, t, t_right), dim=-1)
 
@@ -90,7 +100,7 @@ class VisionRotaryEmbeddingFast(nn.Module):
         pt_seq_len=16,
         ft_seq_len=None,
         custom_freqs=None,
-        freqs_for='lang',
+        freqs_for="lang",
         theta=10000,
         max_freq=10,
         num_freqs=1,
@@ -99,21 +109,23 @@ class VisionRotaryEmbeddingFast(nn.Module):
         super().__init__()
         if custom_freqs:
             freqs = custom_freqs
-        elif freqs_for == 'lang':
-            freqs = 1. / (theta ** (torch.arange(0, dim, 2)[:(dim // 2)].float() / dim))
-        elif freqs_for == 'pixel':
-            freqs = torch.linspace(1., max_freq / 2, dim // 2) * pi
-        elif freqs_for == 'constant':
+        elif freqs_for == "lang":
+            freqs = 1.0 / (
+                theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim)
+            )
+        elif freqs_for == "pixel":
+            freqs = torch.linspace(1.0, max_freq / 2, dim // 2) * pi
+        elif freqs_for == "constant":
             freqs = torch.ones(num_freqs).float()
         else:
-            raise ValueError(f'unknown modality {freqs_for}')
+            raise ValueError(f"unknown modality {freqs_for}")
 
         if ft_seq_len is None:
             ft_seq_len = pt_seq_len
         t = torch.arange(ft_seq_len) / ft_seq_len * pt_seq_len
 
-        freqs = torch.einsum('..., f -> ... f', t, freqs)
-        freqs = repeat(freqs, '... n -> ... (n r)', r=2)
+        freqs = torch.einsum("..., f -> ... f", t, freqs)
+        freqs = repeat(freqs, "... n -> ... (n r)", r=2)
         freqs = broadcat((freqs[:, None, :], freqs[None, :, :]), dim=-1)
 
         if num_cls_token > 0:
@@ -122,8 +134,12 @@ class VisionRotaryEmbeddingFast(nn.Module):
             sin_img = freqs_flat.sin()
 
             N_img, D = cos_img.shape
-            cos_pad = torch.ones(num_cls_token, D, dtype=cos_img.dtype, device=cos_img.device)
-            sin_pad = torch.zeros(num_cls_token, D, dtype=sin_img.dtype, device=sin_img.device)
+            cos_pad = torch.ones(
+                num_cls_token, D, dtype=cos_img.dtype, device=cos_img.device
+            )
+            sin_pad = torch.zeros(
+                num_cls_token, D, dtype=sin_img.dtype, device=sin_img.device
+            )
 
             self.freqs_cos = torch.cat([cos_pad, cos_img], dim=0).cuda()
             self.freqs_sin = torch.cat([sin_pad, sin_img], dim=0).cuda()
@@ -157,7 +173,9 @@ def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False, extra_tokens=
     grid = grid.reshape([2, 1, grid_size, grid_size])
     pos_embed = get_2d_sincos_pos_embed_from_grid(embed_dim, grid)
     if cls_token and extra_tokens > 0:
-        pos_embed = np.concatenate([np.zeros([extra_tokens, embed_dim]), pos_embed], axis=0)
+        pos_embed = np.concatenate(
+            [np.zeros([extra_tokens, embed_dim]), pos_embed], axis=0
+        )
     return pos_embed
 
 
@@ -172,11 +190,11 @@ def get_2d_sincos_pos_embed_from_grid(embed_dim, grid):
 def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
     assert embed_dim % 2 == 0
     omega = np.arange(embed_dim // 2, dtype=np.float64)
-    omega /= embed_dim / 2.
-    omega = 1. / 10000 ** omega
+    omega /= embed_dim / 2.0
+    omega = 1.0 / 10000**omega
 
     pos = pos.reshape(-1)
-    out = np.einsum('m,d->md', pos, omega)
+    out = np.einsum("m,d->md", pos, omega)
 
     emb_sin = np.sin(out)
     emb_cos = np.cos(out)

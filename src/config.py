@@ -72,9 +72,7 @@ def load_config(path: str | Path) -> Config:
     path = Path(path)
 
     if not path.exists():
-        raise FileNotFoundError(
-            f"Configuration file not found: {path}"
-        )
+        raise FileNotFoundError(f"Configuration file not found: {path}")
 
     with open(path, "r") as f:
         data = yaml.safe_load(f)
@@ -83,30 +81,14 @@ def load_config(path: str | Path) -> Config:
         raise ValueError(f"Configuration file is empty: {path}")
 
     config = Config(
-        experiment=ExperimentConfig(
-            **data["experiment"]
-        ),
-        dataset=DatasetConfig(
-            **data["dataset"]
-        ),
-        image=ImageConfig(
-            **data["image"]
-        ),
-        weights_calculation=WeightsConfig(
-            **data["weights_calculation"]
-        ),
-        rapsd=RapsdConfig(
-            **data["rapsd"]
-        ),
-        frequencies=FrequenciesConfig(
-            **data["frequencies"]
-        ),
-        figures=FiguresConfig(
-            **data["figures"]
-        ),
-        output=OutputConfig(
-            **data["output"]
-        ),
+        experiment=ExperimentConfig(**data["experiment"]),
+        dataset=DatasetConfig(**data["dataset"]),
+        image=ImageConfig(**data["image"]),
+        weights_calculation=WeightsConfig(**data["weights_calculation"]),
+        rapsd=RapsdConfig(**data["rapsd"]),
+        frequencies=FrequenciesConfig(**data["frequencies"]),
+        figures=FiguresConfig(**data["figures"]),
+        output=OutputConfig(**data["output"]),
     )
 
     validate_config(config)
@@ -125,29 +107,19 @@ def validate_config(config: Config) -> None:
         )
 
     if config.image.resolution <= 0:
-        raise ValueError(
-            "image.resolution must be positive."
-        )
+        raise ValueError("image.resolution must be positive.")
 
     if config.weights_calculation.batch_size <= 0:
-        raise ValueError(
-            "weights_calculation.batch_size must be positive."
-        )
+        raise ValueError("weights_calculation.batch_size must be positive.")
 
     if config.weights_calculation.num_steps <= 0:
-        raise ValueError(
-            "weights_calculation.num_steps must be positive."
-        )
-    
+        raise ValueError("weights_calculation.num_steps must be positive.")
+
     if config.weights_calculation.padded not in {True, False}:
-        raise ValueError(
-            "weights_calculation.padded must be a boolean."
-        )
-    
+        raise ValueError("weights_calculation.padded must be a boolean.")
+
     if config.dataset.max_images < 0:
-        raise ValueError(
-            "dataset.max_images must be >= 0."
-        )
+        raise ValueError("dataset.max_images must be >= 0.")
 
     if config.frequencies.mode not in {0, 1}:
         raise ValueError(
@@ -157,21 +129,13 @@ def validate_config(config: Config) -> None:
         )
 
     if config.frequencies.pixel_size <= 0:
-        raise ValueError(
-            "frequencies.pixel_size must be positive."
-        )
-    
+        raise ValueError("frequencies.pixel_size must be positive.")
+
     if config.frequencies.viewing_distance <= 0:
-        raise ValueError(
-            "frequencies.viewing_distance must be positive."
-        )
+        raise ValueError("frequencies.viewing_distance must be positive.")
 
     if not config.experiment.name:
-        raise ValueError(
-            "experiment.name cannot be empty."
-        )
-    
+        raise ValueError("experiment.name cannot be empty.")
+
     if config.figures.plot_num_steps <= 0:
-        raise ValueError(
-            "figures.plot_num_steps must be positive."
-        )
+        raise ValueError("figures.plot_num_steps must be positive.")

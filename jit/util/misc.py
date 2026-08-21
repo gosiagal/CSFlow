@@ -3,12 +3,13 @@ import datetime
 import os
 import time
 from collections import defaultdict, deque
+from pathlib import Path
 
 import torch
 import torch.distributed as dist
 
 
-class SmoothedValue(object):
+class SmoothedValue:
     def __init__(self, window_size=20, fmt=None):
         if fmt is None:
             fmt = "{median:.4f} ({global_avg:.4f})"
@@ -25,7 +26,7 @@ class SmoothedValue(object):
     def synchronize_between_processes(self):
         if not is_dist_avail_and_initialized():
             return
-        t = torch.tensor([self.count, self.total], dtype=torch.float64, device='cuda')
+        t = torch.tensor([self.count, self.total], dtype=torch.float64, device="cuda")
         dist.barrier()
         dist.all_reduce(t)
         t = t.tolist()
@@ -64,7 +65,7 @@ class SmoothedValue(object):
         )
 
 
-class MetricLogger(object):
+class MetricLogger:
     def __init__(self, delimiter="\t"):
         self.meters = defaultdict(SmoothedValue)
         self.delimiter = delimiter
@@ -83,12 +84,14 @@ class MetricLogger(object):
             return self.meters[attr]
         if attr in self.__dict__:
             return self.__dict__[attr]
-        raise AttributeError("'{}' object has no attribute '{}'".format(type(self).__name__, attr))
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{attr}'"
+        )
 
     def __str__(self):
         loss_str = []
         for name, meter in self.meters.items():
-            loss_str.append("{}: {}".format(name, str(meter)))
+            loss_str.append(f"{name}: {meter!s}")
         return self.delimiter.join(loss_str)
 
     def synchronize_between_processes(self):
@@ -101,22 +104,22 @@ class MetricLogger(object):
     def log_every(self, iterable, print_freq, header=None):
         i = 0
         if not header:
-            header = ''
+            header = ""
         start_time = time.time()
         end = time.time()
-        iter_time = SmoothedValue(fmt='{avg:.4f}')
-        data_time = SmoothedValue(fmt='{avg:.4f}')
-        space_fmt = ':' + str(len(str(len(iterable)))) + 'd'
+        iter_time = SmoothedValue(fmt="{avg:.4f}")
+        data_time = SmoothedValue(fmt="{avg:.4f}")
+        space_fmt = ":" + str(len(str(len(iterable)))) + "d"
         log_msg = [
             header,
-            '[{0' + space_fmt + '}/{1}]',
-            'eta: {eta}',
-            '{meters}',
-            'time: {time}',
-            'data: {data}',
+            "[{0" + space_fmt + "}/{1}]",
+            "eta: {eta}",
+            "{meters}",
+            "time: {time}",
+            "data: {data}",
         ]
         if torch.cuda.is_available():
-            log_msg.append('max mem: {memory:.0f}')
+            log_msg.append("max mem: {memory:.0f}")
         log_msg = self.delimiter.join(log_msg)
         MB = 1024.0 * 1024.0
         for obj in iterable:
@@ -127,32 +130,46 @@ class MetricLogger(object):
                 eta_seconds = iter_time.global_avg * (len(iterable) - i)
                 eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
                 if torch.cuda.is_available():
-                    print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
-                        meters=str(self),
-                        time=str(iter_time), data=str(data_time),
-                        memory=torch.cuda.max_memory_allocated() / MB))
+                    print(
+                        log_msg.format(
+                            i,
+                            len(iterable),
+                            eta=eta_string,
+                            meters=str(self),
+                            time=str(iter_time),
+                            data=str(data_time),
+                            memory=torch.cuda.max_memory_allocated() / MB,
+                        )
+                    )
                 else:
-                    print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
-                        meters=str(self),
-                        time=str(iter_time), data=str(data_time)))
+                    print(
+                        log_msg.format(
+                            i,
+                            len(iterable),
+                            eta=eta_string,
+                            meters=str(self),
+                            time=str(iter_time),
+                            data=str(data_time),
+                        )
+                    )
             i += 1
             end = time.time()
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-        print('{} Total time: {} ({:.4f} s / it)'.format(header, total_time_str, total_time / len(iterable)))
+        print(
+            f"{header} Total time: {total_time_str} ({total_time / len(iterable):.4f} s / it)"
+        )
 
 
 def setup_for_distributed(is_master):
     builtin_print = builtins.print
 
     def print(*args, **kwargs):
-        force = kwargs.pop('force', False)
+        force = kwargs.pop("force", False)
         force = force or (get_world_size() > 8)
         if is_master or force:
             now = datetime.datetime.now().time()
-            builtin_print('[{}] '.format(now), end='')
+            builtin_print(f"[{now}] ", end="")
             builtin_print(*args, **kwargs)
 
     builtins.print = print
@@ -189,40 +206,48 @@ def save_on_master(*args, **kwargs):
 
 def init_distributed_mode(args):
     if args.dist_on_itp:
-        args.rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
-        args.world_size = int(os.environ['OMPI_COMM_WORLD_SIZE'])
-        args.gpu = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
-        args.dist_url = "tcp://%s:%s" % (os.environ['MASTER_ADDR'], os.environ['MASTER_PORT'])
-        os.environ['LOCAL_RANK'] = str(args.gpu)
-        os.environ['RANK'] = str(args.rank)
-        os.environ['WORLD_SIZE'] = str(args.world_size)
-    elif 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
+        args.rank = int(os.environ["OMPI_COMM_WORLD_RANK"])
+        args.world_size = int(os.environ["OMPI_COMM_WORLD_SIZE"])
+        args.gpu = int(os.environ["OMPI_COMM_WORLD_LOCAL_RANK"])
+        args.dist_url = "tcp://%s:%s" % (
+            os.environ["MASTER_ADDR"],
+            os.environ["MASTER_PORT"],
+        )
+        os.environ["LOCAL_RANK"] = str(args.gpu)
+        os.environ["RANK"] = str(args.rank)
+        os.environ["WORLD_SIZE"] = str(args.world_size)
+    elif "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         args.rank = int(os.environ["RANK"])
-        args.world_size = int(os.environ['WORLD_SIZE'])
-        args.gpu = int(os.environ['LOCAL_RANK'])
-    elif 'SLURM_PROCID' in os.environ:
-        args.rank = int(os.environ['SLURM_PROCID'])
-        args.gpu = int(os.environ['SLURM_LOCALID'])
-        args.world_size = int(os.environ['SLURM_NTASKS'])
-        os.environ['RANK'] = str(args.rank)
-        os.environ['LOCAL_RANK'] = str(args.gpu)
-        os.environ['WORLD_SIZE'] = str(args.world_size)
+        args.world_size = int(os.environ["WORLD_SIZE"])
+        args.gpu = int(os.environ["LOCAL_RANK"])
+    elif "SLURM_PROCID" in os.environ:
+        args.rank = int(os.environ["SLURM_PROCID"])
+        args.gpu = int(os.environ["SLURM_LOCALID"])
+        args.world_size = int(os.environ["SLURM_NTASKS"])
+        os.environ["RANK"] = str(args.rank)
+        os.environ["LOCAL_RANK"] = str(args.gpu)
+        os.environ["WORLD_SIZE"] = str(args.world_size)
     else:
         args.rank = 0
         args.gpu = 0
         args.world_size = 1
-        args.dist_url = 'env://'
+        args.dist_url = "env://"
 
     if args.world_size > 1:
         if torch.cuda.is_available():
             torch.cuda.set_device(args.gpu)
-        dist.init_process_group(backend='nccl', init_method=args.dist_url, world_size=args.world_size, rank=args.rank)
+        dist.init_process_group(
+            backend="nccl",
+            init_method=args.dist_url,
+            world_size=args.world_size,
+            rank=args.rank,
+        )
 
 
 def all_reduce_mean(x):
     if not is_dist_avail_and_initialized():
         return x
-    tensor = torch.tensor([x], device='cuda')
+    tensor = torch.tensor([x], device="cuda")
     dist.all_reduce(tensor)
     return tensor.item() / dist.get_world_size()
 
@@ -232,10 +257,14 @@ def add_weight_decay(model, weight_decay=0.0, skip_list=()):
     for name, param in model.named_parameters():
         if not param.requires_grad:
             continue
-        if name.endswith('.bias') or name.endswith('.LayerNorm.weight') or name in skip_list:
-            params.append({'params': param, 'weight_decay': 0.0})
+        if (
+            name.endswith(".bias")
+            or name.endswith(".LayerNorm.weight")
+            or name in skip_list
+        ):
+            params.append({"params": param, "weight_decay": 0.0})
         else:
-            params.append({'params': param, 'weight_decay': weight_decay})
+            params.append({"params": param, "weight_decay": weight_decay})
     return params
 
 
@@ -246,17 +275,30 @@ def save_model(args, model_without_ddp, optimizer, epoch, epoch_name=None):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if epoch_name is None:
-        filename = f'checkpoint-{epoch:04d}.pth'
+        filename = f"checkpoint-{epoch:04d}.pth"
     else:
-        filename = f'checkpoint-{epoch_name}.pth'
+        filename = f"checkpoint-{epoch_name}.pth"
 
     save_state = {
-        'model': model_without_ddp.state_dict(),
-        'optimizer': optimizer.state_dict(),
-        'epoch': epoch,
-        'args': vars(args),
+        "model": model_without_ddp.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "epoch": epoch,
+        "args": vars(args),
     }
-    if hasattr(model_without_ddp, 'ema_params1') and model_without_ddp.ema_params1 is not None:
-        save_state['model_ema1'] = {k: v.detach().cpu() for k, v in zip(model_without_ddp.named_parameters(), model_without_ddp.ema_params1)}
-        save_state['model_ema2'] = {k: v.detach().cpu() for k, v in zip(model_without_ddp.named_parameters(), model_without_ddp.ema_params2)}
+    if (
+        hasattr(model_without_ddp, "ema_params1")
+        and model_without_ddp.ema_params1 is not None
+    ):
+        save_state["model_ema1"] = {
+            k: v.detach().cpu()
+            for k, v in zip(
+                model_without_ddp.named_parameters(), model_without_ddp.ema_params1
+            )
+        }
+        save_state["model_ema2"] = {
+            k: v.detach().cpu()
+            for k, v in zip(
+                model_without_ddp.named_parameters(), model_without_ddp.ema_params2
+            )
+        }
     torch.save(save_state, output_dir / filename)

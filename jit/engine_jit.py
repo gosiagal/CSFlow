@@ -8,48 +8,63 @@ import numpy as np
 import torch
 
 try:
-    from .util import misc, lr_sched
+    from .util import lr_sched, misc
 except ImportError:  # pragma: no cover - fallback for direct script execution
-    import util.misc as misc
-    import util.lr_sched as lr_sched
+    from util import lr_sched, misc
 
-import torch_fidelity
 import copy
 
+import torch_fidelity
 
-def train_one_epoch(model, model_without_ddp, data_loader, optimizer, device, epoch, log_writer=None, args=None):
+
+def train_one_epoch(
+    model,
+    model_without_ddp,
+    data_loader,
+    optimizer,
+    device,
+    epoch,
+    log_writer=None,
+    args=None,
+):
     model.train(True)
     metric_logger = misc.MetricLogger(delimiter="  ")
-    metric_logger.add_meter('lr', misc.SmoothedValue(window_size=1, fmt='{value:.2e}'))
-    header = 'Epoch: [{}]'.format(epoch)
+    metric_logger.add_meter("lr", misc.SmoothedValue(window_size=1, fmt="{value:.2e}"))
+    header = f"Epoch: [{epoch}]"
     print_freq = 20
 
-    grad_accum = max(1, int(getattr(args, 'accumulate_steps', 1)))
+    grad_accum = max(1, int(getattr(args, "accumulate_steps", 1)))
     updates_per_epoch = (len(data_loader) + grad_accum - 1) // grad_accum
     optimizer.zero_grad(set_to_none=True)
 
     if log_writer is not None:
-        print('log_dir: {}'.format(log_writer.log_dir))
+        print(f"log_dir: {log_writer.log_dir}")
 
-    for data_iter_step, (x, labels) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+    for data_iter_step, (x, labels) in enumerate(
+        metric_logger.log_every(data_loader, print_freq, header)
+    ):
         x = x.to(device, non_blocking=True).to(torch.float32).div_(255)
         x = x * 2.0 - 1.0
         labels = labels.to(device, non_blocking=True)
 
-        with torch.amp.autocast('cuda', dtype=torch.bfloat16):
+        with torch.amp.autocast("cuda", dtype=torch.bfloat16):
             loss = model(x, labels)
 
         loss_value = loss.item()
         if not math.isfinite(loss_value):
-            print("Loss is {}, stopping training".format(loss_value))
+            print(f"Loss is {loss_value}, stopping training")
             sys.exit(1)
 
         (loss / grad_accum).backward()
 
-        step_now = ((data_iter_step + 1) % grad_accum == 0) or ((data_iter_step + 1) == len(data_loader))
+        step_now = ((data_iter_step + 1) % grad_accum == 0) or (
+            (data_iter_step + 1) == len(data_loader)
+        )
         if step_now:
             update_step = data_iter_step // grad_accum
-            lr_sched.adjust_learning_rate(optimizer, update_step / updates_per_epoch + epoch, args)
+            lr_sched.adjust_learning_rate(
+                optimizer, update_step / updates_per_epoch + epoch, args
+            )
             optimizer.step()
             optimizer.zero_grad(set_to_none=True)
             torch.cuda.synchronize()
@@ -64,8 +79,8 @@ def train_one_epoch(model, model_without_ddp, data_loader, optimizer, device, ep
         if log_writer is not None:
             epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
             if data_iter_step % args.log_freq == 0:
-                log_writer.add_scalar('train_loss', loss_value_reduce, epoch_1000x)
-                log_writer.add_scalar('lr', lr, epoch_1000x)
+                log_writer.add_scalar("train_loss", loss_value_reduce, epoch_1000x)
+                log_writer.add_scalar("lr", lr, epoch_1000x)
 
 
 def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
@@ -76,10 +91,7 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
 
     save_folder = os.path.join(
         args.output_dir,
-        "{}-steps{}-cfg{}-interval{}-{}-image{}-res{}".format(
-            model_without_ddp.method, model_without_ddp.steps, model_without_ddp.cfg_scale,
-            model_without_ddp.cfg_interval[0], model_without_ddp.cfg_interval[1], args.num_images, args.img_size
-        )
+        f"{model_without_ddp.method}-steps{model_without_ddp.steps}-cfg{model_without_ddp.cfg_scale}-interval{model_without_ddp.cfg_interval[0]}-{model_without_ddp.cfg_interval[1]}-image{args.num_images}-res{args.img_size}",
     )
     print("Save to:", save_folder)
     if misc.get_rank() == 0 and not os.path.exists(save_folder):
@@ -94,19 +106,21 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
     model_without_ddp.load_state_dict(ema_state_dict)
 
     class_num = args.class_num
-    assert args.num_images % class_num == 0, "Number of images per class must be the same"
+    assert (
+        args.num_images % class_num == 0
+    ), "Number of images per class must be the same"
     class_label_gen_world = np.arange(0, class_num).repeat(args.num_images // class_num)
     class_label_gen_world = np.hstack([class_label_gen_world, np.zeros(50000)])
 
     for i in range(num_steps):
-        print("Generation step {}/{}".format(i, num_steps))
+        print(f"Generation step {i}/{num_steps}")
 
         start_idx = world_size * batch_size * i + local_rank * batch_size
         end_idx = start_idx + batch_size
         labels_gen = class_label_gen_world[start_idx:end_idx]
         labels_gen = torch.Tensor(labels_gen).long().cuda()
 
-        with torch.amp.autocast('cuda', dtype=torch.bfloat16):
+        with torch.amp.autocast("cuda", dtype=torch.bfloat16):
             sampled_images = model_without_ddp.generate(labels_gen)
 
         torch.distributed.barrier()
@@ -115,12 +129,21 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
         sampled_images = sampled_images.detach().cpu()
 
         for b_id in range(sampled_images.size(0)):
-            img_id = i * sampled_images.size(0) * world_size + local_rank * sampled_images.size(0) + b_id
+            img_id = (
+                i * sampled_images.size(0) * world_size
+                + local_rank * sampled_images.size(0)
+                + b_id
+            )
             if img_id >= args.num_images:
                 break
-            gen_img = np.round(np.clip(sampled_images[b_id].numpy().transpose([1, 2, 0]) * 255, 0, 255))
+            gen_img = np.round(
+                np.clip(sampled_images[b_id].numpy().transpose([1, 2, 0]) * 255, 0, 255)
+            )
             gen_img = gen_img.astype(np.uint8)[:, :, ::-1]
-            cv2.imwrite(os.path.join(save_folder, '{}.png'.format(str(img_id).zfill(5))), gen_img)
+            cv2.imwrite(
+                os.path.join(save_folder, f"{str(img_id).zfill(5)}.png"),
+                gen_img,
+            )
 
     torch.distributed.barrier()
 
@@ -129,9 +152,9 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
 
     if log_writer is not None:
         if args.img_size == 256:
-            fid_statistics_file = 'fid_stats/jit_in256_stats.npz'
+            fid_statistics_file = "fid_stats/jit_in256_stats.npz"
         elif args.img_size == 512:
-            fid_statistics_file = 'fid_stats/jit_in512_stats.npz'
+            fid_statistics_file = "fid_stats/jit_in512_stats.npz"
         else:
             raise NotImplementedError
         metrics_dict = torch_fidelity.calculate_metrics(
@@ -145,12 +168,12 @@ def evaluate(model_without_ddp, args, epoch, batch_size=64, log_writer=None):
             prc=False,
             verbose=False,
         )
-        fid = metrics_dict['frechet_inception_distance']
-        inception_score = metrics_dict['inception_score_mean']
-        postfix = "_cfg{}_res{}".format(model_without_ddp.cfg_scale, args.img_size)
-        log_writer.add_scalar('fid{}'.format(postfix), fid, epoch)
-        log_writer.add_scalar('is{}'.format(postfix), inception_score, epoch)
-        print("FID: {:.4f}, Inception Score: {:.4f}".format(fid, inception_score))
+        fid = metrics_dict["frechet_inception_distance"]
+        inception_score = metrics_dict["inception_score_mean"]
+        postfix = f"_cfg{model_without_ddp.cfg_scale}_res{args.img_size}"
+        log_writer.add_scalar(f"fid{postfix}", fid, epoch)
+        log_writer.add_scalar(f"is{postfix}", inception_score, epoch)
+        print(f"FID: {fid:.4f}, Inception Score: {inception_score:.4f}")
         if args.keep_generated_images:
             print("Keeping generated images at:", save_folder)
         else:

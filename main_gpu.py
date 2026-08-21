@@ -1,16 +1,16 @@
 import argparse
 import os
 import pickle
-import time
+
 import numpy as np
 import torch
 
 from src.config import load_config
-from src.data_utils_imagenet import DataLoaderImagenet
 from src.data_utils_blip3o import DataLoaderBLIP3o
-from src.rapsd_calculator_gpu import RapsdCalculatorGPU
-from src.metrics_calculator import MetricsCalculator
+from src.data_utils_imagenet import DataLoaderImagenet
 from src.frequencies_utils import FrequencyConverter, csf_barten
+from src.metrics_calculator import MetricsCalculator
+from src.rapsd_calculator_gpu import RapsdCalculatorGPU
 
 
 def run_rapsd_gpu(config, rapsd_cache) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -60,21 +60,15 @@ def run_rapsd_gpu(config, rapsd_cache) -> tuple[np.ndarray, np.ndarray, np.ndarr
         )
 
     else:
-        raise ValueError(
-            f"Unsupported dataset type: {config.dataset.type}"
-        )
+        raise ValueError(f"Unsupported dataset type: {config.dataset.type}")
 
     print("Computing RAPSD for real data...")
 
-    mean_rapsd_data, frequencies = (
-        calculator.compute_dataset_mean_rapsd(dataloader)
-    )
+    mean_rapsd_data, frequencies = calculator.compute_dataset_mean_rapsd(dataloader)
 
     print("Computing RAPSD for noise...")
 
-    mean_rapsd_noise = calculator.compute_noise_rapsd(
-        num_samples=dataloader.num_images
-    )
+    mean_rapsd_noise = calculator.compute_noise_rapsd(num_samples=dataloader.num_images)
 
     cache_dir = os.path.dirname(rapsd_cache)
 
@@ -98,7 +92,6 @@ def run_rapsd_gpu(config, rapsd_cache) -> tuple[np.ndarray, np.ndarray, np.ndarr
         mean_rapsd_noise,
         frequencies,
     )
-
 
 
 def parse_args():
@@ -130,7 +123,7 @@ def main(config):
     if config.rapsd.cache is None:
 
         rapsd_cache_path = os.path.join(
-            f"rapsd_cache",
+            "rapsd_cache",
             f"rapsd_results_{config.experiment.name}_{config.image.resolution}.pkl",
         )
 
@@ -141,20 +134,16 @@ def main(config):
     # Validate dataset
     # --------------------------------------------------
 
-    if (
-        not os.path.exists(rapsd_cache_path)
-        and config.dataset.path is None
-    ):
+    if not os.path.exists(rapsd_cache_path) and config.dataset.path is None:
         raise ValueError(
-            "RAPSD cache does not exist and "
-            "dataset.path was not provided."
+            "RAPSD cache does not exist and " "dataset.path was not provided."
         )
 
     # --------------------------------------------------
     # Compute/load RAPSD
     # --------------------------------------------------
 
-    (mean_rapsd_data, mean_rapsd_noise, frequencies) = run_rapsd_gpu(
+    mean_rapsd_data, mean_rapsd_noise, frequencies = run_rapsd_gpu(
         config=config,
         rapsd_cache=rapsd_cache_path,
     )
@@ -163,7 +152,11 @@ def main(config):
     # Diffusion timesteps
     # --------------------------------------------------
 
-    timesteps = np.linspace(0.0, 1 - (1 / config.weights_calculation.num_steps), config.weights_calculation.num_steps)
+    timesteps = np.linspace(
+        0.0,
+        1 - (1 / config.weights_calculation.num_steps),
+        config.weights_calculation.num_steps,
+    )
 
     timesteps = np.concatenate(
         [
@@ -195,22 +188,15 @@ def main(config):
         frequencies=frequencies,
     )
 
-    frequencies_converted = (
-        frequency_converter.frequencies_converted
-    )
+    frequencies_converted = frequency_converter.frequencies_converted
 
-    csf_vals = csf_barten(
-        frequencies_converted
-    )
+    csf_vals = csf_barten(frequencies_converted)
 
     # --------------------------------------------------
     # Calculate timestep weights
     # --------------------------------------------------
 
-    timestep_weighted = (
-        metrics.delta_retained_signal
-        * csf_vals[None, :]
-    )
+    timestep_weighted = metrics.delta_retained_signal * csf_vals[None, :]
 
     timestep_scalar_weights = np.trapezoid(
         timestep_weighted,
@@ -224,17 +210,14 @@ def main(config):
         axis=1,
     )
 
-    timestep_scalar_weights /= np.sum(
-        timestep_scalar_weights
-    )
+    timestep_scalar_weights /= np.sum(timestep_scalar_weights)
 
     if (
         np.any(~np.isfinite(timestep_scalar_weights))
         or timestep_scalar_weights.sum() <= 0
     ):
         raise ValueError(
-            "Could not construct finite, positive "
-            "timestep importance weights."
+            "Could not construct finite, positive " "timestep importance weights."
         )
 
     if config.weights_calculation.padded:
@@ -265,7 +248,7 @@ def main(config):
 
     training_weights_path = os.path.join(
         results_subdir,
-        f"training_weights.pkl",
+        "training_weights.pkl",
     )
 
     with open(training_weights_path, "wb") as f:
@@ -277,10 +260,7 @@ def main(config):
             f,
         )
 
-    print(
-        f"Saved training weights to "
-        f"{training_weights_path}"
-    )
+    print(f"Saved training weights to " f"{training_weights_path}")
 
     print("\nOutput file:")
     print(f"  - {training_weights_path}")
@@ -291,19 +271,13 @@ if __name__ == "__main__":
 
     config = load_config(args.config)
 
-    print(
-        f"Running experiment: "
-        f"{config.experiment.name}"
-    )
+    print(f"Running experiment: " f"{config.experiment.name}")
 
     main(config)
 
     if config.figures.reproduce_figures:
         import reproduce_figures
 
-        print(
-            f"\nReproducing figures in "
-            f"{config.figures.directory}"
-        )
+        print(f"\nReproducing figures in " f"{config.figures.directory}")
 
         reproduce_figures.main(config=config)

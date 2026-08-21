@@ -5,7 +5,7 @@ import pickle
 from dataclasses import dataclass
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 try:
     from .model_jit import JiT_models
@@ -70,10 +70,18 @@ class Denoiser(nn.Module):
         self.ema_params2 = None
 
         # generation hyper params
-        self.weighted = getattr(args, "inference_weighted", getattr(args, "weighted", False))
-        self.interpolated = getattr(args, "inference_interpolated", getattr(args, "interpolated", False))
-        self.interp_alpha = getattr(args, "inference_interp_alpha", getattr(args, "interp_alpha", 1.0))
-        self.gen_timeshift = getattr(args, "inference_timeshift", getattr(args, "gen_timeshift", 1.0))
+        self.weighted = getattr(
+            args, "inference_weighted", getattr(args, "weighted", False)
+        )
+        self.interpolated = getattr(
+            args, "inference_interpolated", getattr(args, "interpolated", False)
+        )
+        self.interp_alpha = getattr(
+            args, "inference_interp_alpha", getattr(args, "interp_alpha", 1.0)
+        )
+        self.gen_timeshift = getattr(
+            args, "inference_timeshift", getattr(args, "gen_timeshift", 1.0)
+        )
         self.inference_weights_path = self.weight_config.inference_weights_path
         self.train_weighted = getattr(args, "train_weighted", False)
         self.train_interpolated = getattr(args, "train_interpolated", False)
@@ -107,7 +115,9 @@ class Denoiser(nn.Module):
         return config
 
     @staticmethod
-    def _resolve_weight_path(path: str | None, *, default_filename: str, env_names: tuple[str, ...]) -> str:
+    def _resolve_weight_path(
+        path: str | None, *, default_filename: str, env_names: tuple[str, ...]
+    ) -> str:
         candidates = []
         if path and str(path).strip():
             candidates.append(str(path).strip())
@@ -129,7 +139,9 @@ class Denoiser(nn.Module):
         return ""
 
     @staticmethod
-    def _interp1d_torch(x: torch.Tensor, xp: torch.Tensor, fp: torch.Tensor) -> torch.Tensor:
+    def _interp1d_torch(
+        x: torch.Tensor, xp: torch.Tensor, fp: torch.Tensor
+    ) -> torch.Tensor:
         """Torch equivalent of np.interp for 1D monotonic xp."""
         x = x.clamp(min=xp[0], max=xp[-1])
         idx = torch.searchsorted(xp, x, right=False)
@@ -158,19 +170,27 @@ class Denoiser(nn.Module):
             raise ValueError(f"timeshift must be > 0, got {shift}")
         return t / (t + (1.0 - t) * shift)
 
-    def _build_general_weighted_timesteps(self, device, interp_alpha: float = 1.0, timeshift: float = 1.0):
+    def _build_general_weighted_timesteps(
+        self, device, interp_alpha: float = 1.0, timeshift: float = 1.0
+    ):
         """Resample an arbitrary-length CSF interval schedule to the current generation steps."""
         base_weights = self._load_interval_weights(device=device, for_training=False)
 
-        base_grid = torch.linspace(0.0, 1.0, base_weights.numel() + 1, device=device, dtype=torch.float32)
-        shifted_uniform_cdf = self._inverse_shift_respace(base_grid, timeshift).clamp(0.0, 1.0)
+        base_grid = torch.linspace(
+            0.0, 1.0, base_weights.numel() + 1, device=device, dtype=torch.float32
+        )
+        shifted_uniform_cdf = self._inverse_shift_respace(base_grid, timeshift).clamp(
+            0.0, 1.0
+        )
         shifted_uniform_cdf[0] = 0.0
         shifted_uniform_cdf[-1] = 1.0
 
-        base_cdf = torch.cat([
-            torch.zeros(1, device=device, dtype=torch.float32),
-            torch.cumsum(base_weights, dim=0)
-        ])
+        base_cdf = torch.cat(
+            [
+                torch.zeros(1, device=device, dtype=torch.float32),
+                torch.cumsum(base_weights, dim=0),
+            ]
+        )
         base_cdf = torch.cummax(base_cdf, dim=0)[0]
         base_cdf = base_cdf.clamp(0.0, 1.0)
         base_cdf[0] = 0.0
@@ -185,13 +205,19 @@ class Denoiser(nn.Module):
 
         base_cdf[-1] = 1.0
 
-        target_q = torch.linspace(0.0, 1.0, self.steps + 1, device=device, dtype=torch.float32)
+        target_q = torch.linspace(
+            0.0, 1.0, self.steps + 1, device=device, dtype=torch.float32
+        )
         timesteps = self._interp1d_torch(target_q, mixed_cdf, base_grid).clamp(0.0, 1.0)
         return timesteps
 
-    def _build_weighted_timesteps(self, device, interp_alpha: float = 1.0, timeshift: float = 1.0):
+    def _build_weighted_timesteps(
+        self, device, interp_alpha: float = 1.0, timeshift: float = 1.0
+    ):
         """Backward-compatible alias for the general weighted timestep builder."""
-        return self._build_general_weighted_timesteps(device=device, interp_alpha=interp_alpha, timeshift=timeshift)
+        return self._build_general_weighted_timesteps(
+            device=device, interp_alpha=interp_alpha, timeshift=timeshift
+        )
 
     @staticmethod
     def _extract_interval_weights(raw_obj):
@@ -225,7 +251,9 @@ class Denoiser(nn.Module):
         arr = arr.clamp_min(0.0)
         total = arr.sum()
         if torch.isclose(total, torch.tensor(0.0, device=arr.device, dtype=arr.dtype)):
-            raise ValueError("Weights sum to zero; cannot normalize a timestep schedule")
+            raise ValueError(
+                "Weights sum to zero; cannot normalize a timestep schedule"
+            )
         return arr / total
 
     def _load_interval_weights(self, device, for_training: bool = False):
@@ -246,31 +274,43 @@ class Denoiser(nn.Module):
 
     def _build_original_train_interval_weights(self, device, num_bins: int):
         """Approximate the default JiT sigmoid-normal train distribution on a fixed grid."""
-        grid = torch.linspace(0.0, 1.0, num_bins + 1, device=device, dtype=torch.float32)
+        grid = torch.linspace(
+            0.0, 1.0, num_bins + 1, device=device, dtype=torch.float32
+        )
         logits = torch.logit(grid[1:-1].clamp(1e-6, 1.0 - 1e-6))
         normal = torch.distributions.Normal(loc=self.P_mean, scale=self.P_std)
-        cdf = torch.cat([
-            torch.zeros(1, device=device, dtype=torch.float32),
-            normal.cdf(logits),
-            torch.ones(1, device=device, dtype=torch.float32),
-        ])
+        cdf = torch.cat(
+            [
+                torch.zeros(1, device=device, dtype=torch.float32),
+                normal.cdf(logits),
+                torch.ones(1, device=device, dtype=torch.float32),
+            ]
+        )
         interval_weights = (cdf[1:] - cdf[:-1]).clamp_min(0.0)
         return interval_weights / interval_weights.sum().clamp_min(1e-12)
 
     def _build_train_interval_weights(self, device, interp_alpha: float):
         weighted_base = self._load_interval_weights(device=device, for_training=True)
-        original_base = self._build_original_train_interval_weights(device=device, num_bins=weighted_base.numel())
+        original_base = self._build_original_train_interval_weights(
+            device=device, num_bins=weighted_base.numel()
+        )
         mix_alpha = float(interp_alpha)
         mixed = mix_alpha * weighted_base + (1.0 - mix_alpha) * original_base
         return mixed / mixed.sum().clamp_min(1e-12)
 
-    def _sample_from_interval_weights(self, interval_weights: torch.Tensor, n: int, device=None):
-        base_cdf = torch.cat([
-            torch.zeros(1, device=device, dtype=torch.float32),
-            torch.cumsum(interval_weights, dim=0)
-        ])
+    def _sample_from_interval_weights(
+        self, interval_weights: torch.Tensor, n: int, device=None
+    ):
+        base_cdf = torch.cat(
+            [
+                torch.zeros(1, device=device, dtype=torch.float32),
+                torch.cumsum(interval_weights, dim=0),
+            ]
+        )
         base_cdf[-1] = 1.0
-        base_grid = torch.linspace(0.0, 1.0, interval_weights.numel() + 1, device=device, dtype=torch.float32)
+        base_grid = torch.linspace(
+            0.0, 1.0, interval_weights.numel() + 1, device=device, dtype=torch.float32
+        )
         q = torch.rand(n, device=device, dtype=torch.float32)
         return self._interp1d_torch(q, base_cdf, base_grid).clamp(0.0, 1.0)
 
@@ -282,8 +322,12 @@ class Denoiser(nn.Module):
     def sample_t(self, n: int, device=None):
         if self.train_weighted:
             interp_alpha = self.train_interp_alpha if self.train_interpolated else 1.0
-            interval_weights = self._build_train_interval_weights(device=device, interp_alpha=interp_alpha)
-            t = self._sample_from_interval_weights(interval_weights=interval_weights, n=n, device=device)
+            interval_weights = self._build_train_interval_weights(
+                device=device, interp_alpha=interp_alpha
+            )
+            t = self._sample_from_interval_weights(
+                interval_weights=interval_weights, n=n, device=device
+            )
             if float(self.train_timeshift) != 1.0:
                 t = self._shift_respace(t, self.train_timeshift)
             return t
@@ -313,7 +357,9 @@ class Denoiser(nn.Module):
     def generate(self, labels):
         device = labels.device
         bsz = labels.size(0)
-        z = self.noise_scale * torch.randn(bsz, 3, self.img_size, self.img_size, device=device)
+        z = self.noise_scale * torch.randn(
+            bsz, 3, self.img_size, self.img_size, device=device
+        )
 
         if self.weighted:
             interp_alpha = self.interp_alpha if self.interpolated else 1.0
@@ -328,7 +374,11 @@ class Denoiser(nn.Module):
                 timesteps = torch.tensor(timesteps, device=device, dtype=torch.float32)
             timesteps = timesteps.view(-1, *([1] * z.ndim)).expand(-1, bsz, -1, -1, -1)
         else:
-            timesteps = torch.linspace(0.0, 1.0, self.steps + 1, device=device).view(-1, *([1] * z.ndim)).expand(-1, bsz, -1, -1, -1)
+            timesteps = (
+                torch.linspace(0.0, 1.0, self.steps + 1, device=device)
+                .view(-1, *([1] * z.ndim))
+                .expand(-1, bsz, -1, -1, -1)
+            )
 
         if self.method == "euler":
             stepper = self._euler_step
