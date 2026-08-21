@@ -52,8 +52,8 @@ python main_gpu.py --config configs/blip3o_512.yaml
 The script:
 
 - loads the precomputed RAPSD statistics for the selected dataset
-- computes retained-signal, delta-retained-signal and csf-delta-retained-signal curves over timesteps
-- integrates csf-delta-retained-signal over frequency to form scalar timestep weights
+- computes $r_{signal}$, $\partial_t r_{signal}$, $CSF \cdot \partial_t r_{signal}$ curves over timesteps
+- integrates $CSF \cdot \partial_t r_{signal}$ over frequency and normalizes it to form scalar timestep weights
 - normalizes the weights
 - saves output file in the results directory
 - reproduces paper figures and saves them in the figures directory
@@ -124,24 +124,24 @@ For weighted training, enable:
 
 1. In our paper, we use CSFlow weights for 500 steps for accuracy. The modified JiT model can use a discrete weight function with **any** number of steps - it linearly interpolates the discrete weight values. We set the default `weights_calculation.num_steps` to 500 in all config files. 
 
-2. In the paper heatmap figures (RSignal, $\Delta$ RSignal, CSF * $\Delta$ RSignal) we use 50 uniform steps for the metric calculations to match the true JiT 50 sampling steps. We set the default `figures.plot_num_steps` to 50 in all config files and it is used only for plotting these heatmaps. 
+2. In the paper heatmap figures ($r_{signal}$, $\partial_t r_{signal}$, $CSF \cdot \partial_t r_{signal}$) we use 50 uniform steps for the metric calculations to match the true JiT 50 sampling steps. We set the default `figures.plot_num_steps` to 50 in all config files and it is used only for plotting these heatmaps. 
 
 3. The JiT denoiser supports multiple schedule behaviors:
 
     - uniform schedule (original)
     - CSFlow schedule
-    - combined schedule: `interp_alpha*CSFlow + (1-interp_alpha)*original`
+    - combined schedule: $\alpha_2 \cdot w_{\mathrm{CSFlow}} + (1-\alpha_2) \cdot w_{\mathrm{uniform}}$
     - optional timeshift rescaling
 
-    The default option is the combined schedule with interpolation alpha 0.4. The timestep grid is created through uniform sampling of the inverse CDF of CSFlow weight function.
+    The default option is the combined schedule with interpolation paramter $\alpha_2=0.4$. The timestep grid $t_1, t_2, ..., t_N$ is created through uniform sampling of the inverse CDF of the combined weight function, therefore, smaller steps correspond to larger weights.
 
 4. The JiT training also supports multiple time sampling behaviors:
 
     - lognorm (original)
     - CSFlow weighting function
-    - combined weight function: `interp_alpha*CSFlow + (1-interp_alpha)*original`
+    - combined weight function: $\alpha_1 \cdot w_{\mathrm{CSFlow}} + (1-\alpha_1) \cdot w_{\mathrm{lognorm}}$
 
-    The default option is the combined weight function with interpolation alpha 0.4. During training, a time value is a random sample of the inverse CDF of CSFlow weight function.
+    The default option is the combined weight function with interpolation parameter $\alpha_1=0.4$. During training, the time value $t$ is a random sample of the inverse CDF of the combined weight function.
 
 ## 8. Reproducing figures and results
 
