@@ -1,3 +1,5 @@
+"""JiT-H/16 flow-matching model architecture, with support for CSFlow-weighted denoising schedules."""
+
 # --------------------------------------------------------
 # References:
 # SiT: https://github.com/willisma/SiT

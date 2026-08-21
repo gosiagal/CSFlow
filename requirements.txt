@@ -1,10 +1,12 @@
 # Requirements for csflow
-numpy
-torch
-torchvision
-Pillow
-tqdm
-scipy
-matplotlib
-ipython
-pyyaml
+numpy>=1.22
+torch>=2.5.1
+torchvision>=0.20.1
+Pillow>=10.0
+tqdm>=4.65
+scipy>=1.9.1
+matplotlib>=3.7
+pyyaml>=6.0
+
+# optional, only needed for interactive development
+ipython>=8.0

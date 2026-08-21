@@ -1,3 +1,5 @@
+"""CLI entry point for JiT-H/16 training and inference, optionally using CSFlow timestep weights."""
+
 import argparse
 import copy
 import datetime

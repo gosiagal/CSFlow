@@ -1,14 +1,18 @@
 # CSFlow: Aligning Flow Matching with Human Contrast Sensitivity
 
+<p align="center">
+  <img src="teaser_figure.jpg" width="100%">
+</p>
+
 This is a codebase for the paper [CSFlow: Aligning Flow Matching with Human Contrast Sensitivity](https://arxiv.org/abs/2606.08833).
 
-This project computes CSFlow timestep importance weights from a dataset and forward process noise schedule. We also provide a modified weighted-JiT model that uses our weights in inference or training. 
+This project computes CSFlow timestep importance weights, that can be used to bias an image generation model to perceptually more important stages. We also provide a modified weighted-JiT model that can use our weights in inference or training.
 
 ## 1. Overview
 
 The CSF stage lives in [main_gpu.py](main_gpu.py) and produces importance weights file under a results directory. The weighted JiT stage lives under [jit](jit) and consumes the file through CLI arguments such as `--inference_weights_path` and `--train_weights_path`.
 
-The CSF code does not directly train or sample an image model. It produces a numerical weighting schedule that reflects how much each diffusion timestep should matter based on perceptual frequency sensitivity and retained signal during the forward process. The weights are generated once, then reused across runs, model variants or models that use the same training dataset.
+The CSF code does not directly train or sample an image model. It produces a numerical weighting schedule that reflects how much each diffusion timestep should matter based on perceptual frequency sensitivity and retained signal during the forward process. The weights are generated once, then reused across runs, model variants or models that use the same training dataset and noise schedule.
 
 ## 2. Required assumptions
 
@@ -17,10 +21,10 @@ For using CSFlow weights with weighted-JiT:
 - The weights image resolution parameter `image.resolution` and the JiT image resolution must stay consistent.
 
 If you want to create your own config:
-- Note that this implementation uses an inverse-linear noise schedule `x_t = t*x_0 + (1-t)*eps`: t=0 corresponds to noise and t=1 corresponds to a clean image. Make sure your model uses the same noise schedule.
+- Note that this implementation uses an inverse-linear noise schedule $x_t = tx_0 + (1-t)\epsilon$: $t=0$ corresponds to noise and $t=1$ corresponds to a clean image. Make sure your model uses the same noise schedule.
 - In the current state, `dataset.type` is either `imagenet` or `blip3o`. If you wish to use a different dataset, create and add a corresponding DataLoader and set the `dataset.path`.
 - `image.resolution` must match the model and dataset you are using.
-- Make sure your assumed viewing conditions match `frequencies.pixel_size` and `frequencies.viewing_distance` parameters in the configuration file.
+- Make sure your assumed viewing conditions are set using `frequencies.pixel_size` and `frequencies.viewing_distance` parameters in the configuration file.
 
 ## 3. Generation of CSFlow weights
 
@@ -139,5 +143,23 @@ For weighted training, enable:
 
     The default option is the combined weight function with interpolation alpha 0.4. During training, a time value is a random sample of the inverse CDF of CSFlow weight function.
 
----
+## 8. Reproducing figures and results
+
+`figures/` and `results/` are not committed as source going forward; they are generated artifacts of `main_gpu.py` and `reproduce_figures.py` (see [.gitignore](.gitignore)). Regenerate them locally by rerunning the commands in Section 3 with `figures.reproduce_figures: true` in the config (the default). Precomputed RAPSD statistics under `rapsd_cache/` are required inputs and remain tracked in the repo.
+
+## 9. License
+
+This project is released under the [MIT License](LICENSE).
+
+## 10. Citation
+```
+@misc{csflow2026,
+      title={CSFlow: Aligning Flow Matching with Human Contrast Sensitivity}, 
+      author={Malgorzata Galinska and Bart Pogodzinski and Jan Eric Lenssen},
+      year={2026},
+      url={https://arxiv.org/abs/2606.08833}, 
+}
+```
+
+See also [CITATION.cff](CITATION.cff) for citation metadata.
 

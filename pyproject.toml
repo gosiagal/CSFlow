@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "csflow"
+version = "0.1.0"
+description = "CSFlow: Aligning Flow Matching with Human Contrast Sensitivity"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+  { name = "Malgorzata Galinska" },
+  { name = "Bart Pogodzinski" },
+  { name = "Jan Eric Lenssen" },
+]
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.22",
+  "torch>=2.5.1",
+  "torchvision>=0.20.1",
+  "Pillow>=10.0",
+  "tqdm>=4.65",
+  "scipy>=1.9.1",
+  "matplotlib>=3.7",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["ipython", "pytest", "black", "ruff"]
+
+[project.urls]
+Paper = "https://arxiv.org/abs/2606.08833"
+
+[tool.setuptools.packages.find]
+include = ["src*"]

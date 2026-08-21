@@ -5,6 +5,8 @@ import numpy as np
 from tqdm import tqdm
 
 # Based on pysteps.utils.spectral.rapsd implementation, but optimized for GPU and batched processing.
+# https://github.com/pySTEPS/pysteps/blob/master/pysteps/utils/spectral.py
+
 class RapsdCalculatorGPU:
     """Radially Averaged Power Spectral Density calculator using batched GPU FFT."""
     

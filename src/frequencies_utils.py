@@ -9,6 +9,7 @@ def csf_barten(u,
                n=0.03, p=1.2e6, E=500, phi_0=3e-8, u_0=7):
     """
     Barten (1999) Contrast Sensitivity Function 
+    https://github.com/qianglisinoeusa/CSFpy/blob/main/Python/chromatic_spatial_CSFs.py
     """
     M_opt = np.exp(-2 * np.pi**2 * sigma**2 * u**2)
     S = (M_opt / k) / np.sqrt(

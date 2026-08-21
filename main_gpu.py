@@ -11,7 +11,6 @@ from src.data_utils_blip3o import DataLoaderBLIP3o
 from src.rapsd_calculator_gpu import RapsdCalculatorGPU
 from src.metrics_calculator import MetricsCalculator
 from src.frequencies_utils import FrequencyConverter, csf_barten
-from src.weighted_inference import make_weighted_timesteps
 
 
 def run_rapsd_gpu(config, rapsd_cache) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -186,7 +185,7 @@ def main(config):
     )
 
     # --------------------------------------------------
-    # Frequency conversion
+    # Frequency conversion and CSF calculation
     # --------------------------------------------------
 
     frequency_converter = FrequencyConverter(

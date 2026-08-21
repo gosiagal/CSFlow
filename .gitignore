@@ -1,0 +1,26 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Environments
+.venv/
+venv/
+env/
+
+# Generated CSFlow outputs (reproducible via main_gpu.py / reproduce_figures.py)
+# Note: rapsd_cache/*.pkl are precomputed inputs required by the configs, not generated outputs - keep tracked.
+figures/**/*.png
+results/**/*.pkl
+
+# JiT run outputs
+jit-h-16-csflow-weighted/
+*.log

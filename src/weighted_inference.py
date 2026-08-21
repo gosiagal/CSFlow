@@ -3,7 +3,7 @@
 import torch
 import numpy as np
 
-
+# unused, but kept for reference; timestep grid is now calculated in jit/denoiser.py
 def make_weighted_timesteps(num_steps: int, weights: np.ndarray, arguments: np.ndarray) -> torch.Tensor:
     """
     Create non-uniform timesteps in [0, 1] based on given weights.
