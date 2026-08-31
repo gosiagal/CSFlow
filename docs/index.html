@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSFlow — Aligning Flow Matching with Human Contrast Sensitivity</title>
+<meta name="description" content="CSFlow connects the human eye's Contrast Sensitivity Function to the denoising steps of flow matching, improving FID by 4.7%, Inception Score by 2.2%, and GenEval by 2.5%.">
+
+<meta property="og:title" content="CSFlow: Aligning Flow Matching with Human Contrast Sensitivity">
+<meta property="og:description" content="A perception-driven timestep weighting scheme for diffusion and flow matching, grounded in the human Contrast Sensitivity Function.">
+<meta property="og:image" content="https://raw.githubusercontent.com/gosiagal/CSFlow/main/teaser_figure.jpg">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ============================= TOKENS ============================= */
+:root{
+  --canvas:#ffffff;
+  --panel:#f6f6f4;
+  --panel-2:#f0f0ee;
+  --line:#e4e4e0;
+  --line-strong:#cfcfca;
+  --ink:#101010;
+  --mist:#6b6b68;
+  --mist-dim:#9a9a96;
+  --accent:#1e3fe0;
+  --accent-2:#0e2bb0;
+
+  --font-display: 'Space Grotesk', ui-sans-serif, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+  --container: 1080px;
+}
+
+*{ box-sizing: border-box; }
+html{ scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce){
+  html{ scroll-behavior: auto; }
+  *{ animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+
+body{
+  margin:0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+img{ max-width:100%; display:block; }
+a{ color: inherit; }
+::selection{ background: var(--accent); color: #fff; }
+:focus-visible{ outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+.wrap{ max-width: var(--container); margin: 0 auto; padding: 0 28px; }
+section{ position: relative; }
+
+.eyebrow{
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.eyebrow::before{ content:""; width: 16px; height: 1px; background: var(--accent); display:inline-block; }
+
+h2.section-title{
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(26px, 3.1vw, 36px);
+  margin: 12px 0 0;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.section-lede{ color: var(--mist); font-size: 16.5px; margin: 14px 0 0; }
+.section-pad{ padding: 88px 0; }
+@media (max-width: 720px){ .section-pad{ padding: 56px 0; } }
+
+/* thin contrast-ramp divider — echoes the chart's own contrast axis */
+.fade-divider{ height: 1px; background: linear-gradient(90deg, var(--ink) 0%, var(--line) 35%, var(--line) 65%, transparent 100%); opacity: 0.5; }
+
+/* ============================= NAV ============================= */
+.nav{ position: sticky; top:0; z-index:50; background: rgba(255,255,255,0.86); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.nav-inner{ max-width: var(--container); margin:0 auto; padding: 15px 28px; display:flex; align-items:center; justify-content:space-between; gap:24px; }
+.brand{ display:flex; align-items:center; gap:9px; font-family: var(--font-display); font-weight:600; font-size:17px; letter-spacing:-0.01em; white-space:nowrap; }
+.brand svg{ width:20px; height:16px; flex-shrink:0; }
+.brand .flow{ color: var(--accent); }
+.nav-links{ display:flex; gap:24px; overflow-x:auto; scrollbar-width:none; font-family: var(--font-mono); font-size:12.5px; color: var(--mist); }
+.nav-links::-webkit-scrollbar{ display:none; }
+.nav-links a{ text-decoration:none; white-space:nowrap; padding:4px 0; border-bottom:1px solid transparent; transition: color .15s ease, border-color .15s ease; }
+.nav-links a:hover{ color: var(--ink); border-color: var(--ink); }
+
+/* ============================= HERO ============================= */
+.hero{ padding: 76px 0 0; text-align:center; }
+.hero .eyebrow{ justify-content:center; }
+.hero .eyebrow::after{ content:""; width:16px; height:1px; background: var(--accent); display:inline-block; }
+
+h1.title{ font-family: var(--font-display); font-weight:700; font-size: clamp(48px, 8.4vw, 96px); line-height: 0.98; letter-spacing:-0.02em; margin: 20px 0 0; color: var(--ink); }
+h1.title .flow{ color: var(--accent); }
+.subtitle{ font-family: var(--font-body); font-weight:400; font-size: clamp(17px, 2.2vw, 21px); color: var(--mist); max-width: 700px; margin: 16px auto 0; letter-spacing: -0.005em; }
+
+.authors{ margin: 36px auto 0; font-size:16.5px; color: var(--ink); max-width:620px; }
+.authors .sep{ color: var(--mist-dim); margin:0 2px; }
+.affil{ margin:8px 0 0; color: var(--mist); font-size:14px; }
+.equal-note{ margin:6px 0 0; color: var(--mist-dim); font-size:12px; font-family: var(--font-mono); }
+
+.links-row{ display:flex; justify-content:center; flex-wrap:wrap; gap:10px; margin: 32px 0 0; }
+.pill{ display:inline-flex; align-items:center; gap:8px; padding:11px 20px; border-radius:6px; border:1px solid var(--ink); background: var(--canvas); text-decoration:none; font-family: var(--font-mono); font-size:13px; font-weight:500; color: var(--ink); transition: all .15s ease; }
+.pill svg{ width:14px; height:14px; }
+.pill:hover{ background: var(--ink); color:#fff; }
+.pill.primary{ background: var(--ink); color:#fff; }
+.pill.primary:hover{ background: var(--accent); border-color: var(--accent); }
+
+.stat-row{ margin: 52px auto 0; display:flex; justify-content:center; flex-wrap:wrap; border-top:1px solid var(--line); border-bottom:1px solid var(--line); max-width:760px; }
+.stat{ flex:1 1 180px; padding:24px 20px; text-align:center; border-left:1px solid var(--line); }
+.stat:first-child{ border-left:none; }
+.stat .num{ font-family: var(--font-display); font-weight:700; font-size:32px; color: var(--accent); }
+.stat .label{ margin-top:4px; font-family: var(--font-mono); font-size:11.5px; color: var(--mist); text-transform:uppercase; letter-spacing:0.06em; }
+
+.chart-layout{ display:flex; gap: 10px; }
+.y-axis-label{ writing-mode: vertical-rl; transform: rotate(180deg); font-family: var(--font-mono); font-size:10.5px; color: var(--mist-dim); text-align:center; white-space:nowrap; padding: 2px 0; }
+.chart-canvas-wrap{ flex:1; min-width:0; }
+canvas.grating{ width:100%; height: clamp(180px, 26vw, 280px); display:block; border-radius: 6px; border: 1px solid var(--line-strong); }
+.x-axis-labels{ display:flex; justify-content:space-between; font-family: var(--font-mono); font-size:11px; color: var(--mist-dim); padding: 8px 2px 0 0; margin-left: 24px; }
+.legend-note{ display:flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size:11.5px; color: var(--mist); margin-top:14px; margin-left:24px; }
+.legend-swatch{ width:16px; height:0; border-top: 2px dashed var(--accent); }
+
+/* ============================= ABSTRACT ============================= */
+.abstract-text strong{ color: var(--ink); font-weight:600; }
+.abstract-grid{ margin-top: 26px; }
+
+/* ============================= VIDEO ============================= */
+.video-frame{ margin-top:32px; border-radius:12px; border:1px dashed var(--line-strong); background: var(--panel); aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; text-align:center; padding:30px; }
+.video-frame .play-badge{ width:58px; height:58px; border-radius:50%; border:1px solid var(--ink); display:flex; align-items:center; justify-content:center; color: var(--ink); }
+.video-frame .play-badge svg{ width:20px; height:20px; margin-left:3px; }
+.video-frame p{ color: var(--mist); font-size:13.5px; max-width:420px; font-family: var(--font-mono); line-height:1.7; }
+.video-frame p code{ color: var(--accent); background: rgba(30,63,224,0.08); padding:1px 6px; border-radius:4px; }
+.real-video{ width:100%; border-radius:12px; margin-top:32px; display:block; }
+/*
+  Swap in the real teaser once exported. Replace the .video-frame div with:
+  <video class="real-video" controls playsinline preload="metadata" poster="assets/teaser-poster.jpg">
+    <source src="assets/teaser.mp4" type="video/mp4">
+  </video>
+  and add: .real-video{ width:100%; border-radius:12px; margin-top:32px; display:block; }
+*/
+
+/* ============================= METHOD ============================= */
+.method-grid{ margin-top:40px; display:grid; grid-template-columns: repeat(2,1fr); gap:1px; background: var(--line); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+@media (max-width:600px){ .method-grid{ grid-template-columns:1fr; } }
+.method-card{ background: var(--canvas); padding:32px; }
+.method-num{ font-family: var(--font-mono); font-size:11.5px; color: var(--mist-dim); letter-spacing:0.06em; }
+.method-card h3{ font-family: var(--font-display); font-size:20px; font-weight:600; margin:10px 0 12px; color: var(--ink); }
+.method-card p{ color: var(--mist); font-size:14.5px; margin:0 0 14px; }
+.method-figure{ width:100%; height:auto; margin:16px 0 4px; }
+.weights-card{ display:flex; flex-direction:column; justify-content:center; }
+.weights-card .method-figure{ align-self:center; }
+.notation-legend{ display:grid; grid-template-columns:repeat(3,1fr); gap:1px; margin-top:28px; border:1px solid var(--line); background:var(--line); }
+.notation-item{ display:flex; align-items:baseline; gap:10px; padding:12px 14px; background:var(--canvas); }
+.notation-symbol{ flex:0 0 auto; font-family:var(--font-mono); font-size:14px; color:var(--accent); font-weight:600; }
+.notation-description{ color:var(--mist); font-size:13px; }
+@media (max-width:720px){ .notation-legend{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:420px){ .notation-legend{ grid-template-columns:1fr; } }
+
+.eq-block{ margin:18px auto 8px; padding:18px; background: var(--panel); border:1px solid var(--line); border-radius:8px; display:flex; align-items:center; justify-content:center; overflow-x:auto; }
+.eq{ font-family: var(--font-mono); font-size: clamp(14px,2vw,18px); color: var(--ink); display:flex; align-items:center; gap:9px; white-space:nowrap; }
+.eq .frac{ display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle; margin:0 4px; }
+.eq .frac .num, .eq .frac .den{ padding:1px 4px; }
+.eq .frac .num{ border-bottom: 1.4px solid var(--accent); }
+.eq .accent{ color: var(--accent); }
+.eq-caption{ text-align:center; font-family: var(--font-mono); font-size:11.5px; color: var(--mist-dim); margin-top:10px; }
+
+/* ============================= INTERACTIVE ============================= */
+.interactive-panel{ margin-top:32px; background: var(--panel); border:1px solid var(--line); border-radius:12px; padding: clamp(20px,4vw,36px); }
+.viz-layout{ display:grid; grid-template-columns: 1fr 250px; gap:32px; align-items:start; }
+@media (max-width:820px){ .viz-layout{ grid-template-columns:1fr; } }
+
+.controls{ display:flex; flex-direction:column; gap:24px; }
+.control label{ display:flex; justify-content:space-between; align-items:baseline; font-family: var(--font-mono); font-size:12px; color: var(--mist); margin-bottom:9px; }
+.control label .val{ color: var(--accent); font-weight:600; }
+.control input[type="range"]{ -webkit-appearance:none; width:100%; height:2px; background: var(--line-strong); border-radius:2px; outline:none; }
+.control input[type="range"]::-webkit-slider-thumb{ -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background: var(--canvas); cursor:pointer; border: 2px solid var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.control input[type="range"]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%; background: var(--canvas); cursor:pointer; border: 2px solid var(--accent); }
+.control-note{ font-family: var(--font-mono); font-size:11.5px; color: var(--mist-dim); line-height:1.65; padding-top:10px; border-top:1px solid var(--line); }
+.reset-btn{ align-self:flex-start; background:none; border:1px solid var(--line-strong); color: var(--mist); font-family: var(--font-mono); font-size:11.5px; padding:8px 13px; border-radius:6px; cursor:pointer; transition: all .15s ease; }
+.reset-btn:hover{ border-color: var(--ink); color: var(--ink); }
+
+/* ============================= RESULTS ============================= */
+.table-wrap{ margin-top:30px; overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
+table{ border-collapse:collapse; width:100%; min-width:720px; font-size:13px; }
+caption{ text-align:left; font-family: var(--font-mono); font-size:12px; color: var(--mist); padding:15px 16px 0; caption-side:top; }
+thead th{ text-align:left; font-family: var(--font-mono); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:0.03em; color: var(--mist-dim); padding:13px 13px; border-bottom:1px solid var(--line-strong); white-space:nowrap; }
+tbody td{ padding:10px 13px; border-bottom:1px solid var(--line); color: var(--mist); white-space:nowrap; }
+tbody tr:last-child td{ border-bottom:none; }
+tbody td:first-child{ color: var(--ink); }
+.ours td{ background: rgba(30,63,224,0.06); }
+.ours td:first-child{ color: var(--accent); font-weight:600; }
+.best-cell{ color: var(--ink); font-weight:700; }
+.parameter-symbol{ text-transform:none; }
+tr.section-row td{ font-family: var(--font-mono); font-size:10.5px; color: var(--mist); background: var(--panel-2); text-transform:uppercase; letter-spacing:0.05em; }
+
+.result-note{ margin-top:16px; font-size:13.5px; color: var(--mist-dim); }
+.results-subsection{ font-family: var(--font-display); font-size:24px; font-weight:600; margin:52px 0 0; color:var(--ink); }
+
+/* ============================= REFERENCES ============================= */
+.references-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:32px 48px; margin-top:32px; }
+.references-group h3{ margin:0 0 10px; font-family:var(--font-mono); font-size:11px; font-weight:600; color:var(--accent); letter-spacing:.08em; text-transform:uppercase; }
+.references-list{ margin:0; padding:0; list-style:none; }
+.references-list li{ padding:10px 0; border-top:1px solid var(--line); color:var(--mist); font-size:14px; line-height:1.55; }
+.references-list a{ color:var(--ink); text-decoration-color:var(--line-strong); text-underline-offset:3px; }
+.references-list a:hover{ color:var(--accent); }
+.reference-note{ margin:18px 0 0; color:var(--mist-dim); font-size:13px; }
+@media (max-width:720px){ .references-grid{ grid-template-columns:1fr; gap:28px; } }
+
+.compare-heading{ margin-top:60px; }
+.compare-grid{ margin-top:28px; display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+@media (max-width:780px){ .compare-grid{ grid-template-columns:1fr; } }
+.compare{ position:relative; aspect-ratio:4/3; border-radius:10px; overflow:hidden; border:1px solid var(--line-strong); user-select:none; touch-action:pan-y; }
+.compare-caption{ font-family: var(--font-mono); font-size:11.5px; color: var(--mist-dim); margin-top:10px; }
+.compare-layer{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; }
+.compare-layer.after{ clip-path: inset(0 0 0 50%); }
+.compare-layer img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.compare-tag{ font-family: var(--font-mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; padding:6px 11px; border-radius:999px; border:1px solid var(--line-strong); background: rgba(255,255,255,0.85); backdrop-filter: blur(4px); color: var(--mist); position:absolute; }
+.compare-layer.before .compare-tag{ top:12px; left:12px; }
+.compare-layer.after .compare-tag{ top:12px; right:12px; color: var(--accent); border-color: rgba(30,63,224,0.35); }
+.compare-placeholder-label{ font-family: var(--font-mono); font-size:10.5px; color: var(--mist-dim); }
+.compare-handle{ position:absolute; top:0; bottom:0; width:2px; background: var(--ink); left:50%; transform: translateX(-1px); cursor: ew-resize; }
+.compare-handle::before{ content:""; position:absolute; top:50%; left:50%; width:36px; height:36px; transform: translate(-50%,-50%); border-radius:50%; background: var(--ink); box-shadow: 0 3px 10px rgba(0,0,0,0.25); }
+.compare-handle::after{ content:"⟷"; position:absolute; top:50%; left:50%; transform: translate(-50%,-56%); color:#fff; font-size:14px; font-weight:bold; }
+
+/* ============================= BIBTEX ============================= */
+.bib-block{ margin-top:28px; position:relative; background: var(--panel); border:1px solid var(--line); border-radius:10px; padding:24px 24px 20px; }
+.bib-block pre{ margin:0; font-family: var(--font-mono); font-size:12.5px; line-height:1.75; color:#26262a; overflow-x:auto; }
+.bib-block .kw{ color: var(--accent); }
+.bib-block .str{ color: var(--accent-2); }
+.copy-btn{ position:absolute; top:16px; right:16px; background: var(--canvas); border:1px solid var(--line-strong); color: var(--mist); font-family: var(--font-mono); font-size:11.5px; padding:7px 12px; border-radius:6px; cursor:pointer; transition: all .15s ease; }
+.copy-btn:hover{ border-color: var(--ink); color: var(--ink); }
+.copy-btn.copied{ color: var(--accent); border-color: var(--accent); }
+
+/* ============================= FOOTER ============================= */
+footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
+.footer-grid{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:24px; font-size:13px; color: var(--mist-dim); }
+.footer-grid a{ text-decoration:none; color: var(--mist); }
+.footer-grid a:hover{ color: var(--accent); }
+.footer-authors{ display:flex; flex-direction:column; gap:4px; }
+.footer-col{ min-width:200px; }
+.footer-col h4{ font-family: var(--font-mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; color: var(--mist-dim); margin:0 0 11px; font-weight:500; }
+.footer-note{ margin-top:36px; padding-top:22px; border-top:1px solid var(--line); font-size:12px; color: var(--mist-dim); }
+
+@media (max-width:480px){ .wrap{ padding:0 18px; } .stat-row{ max-width:100%; } }
+
+/* ============================= SCROLL REVEAL ============================= */
+.reveal{ opacity:0; transform: translateY(28px); transition: opacity .7s ease, transform .7s ease; }
+.reveal.in-view{ opacity:1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce){ .reveal{ opacity:1; transform:none; transition:none; } }
+</style>
+</head>
+<body>
+
+<!-- ============================= NAV ============================= -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="brand"><svg viewBox="0 0 24 16" fill="none" stroke="#101010" stroke-width="1.6"><path d="M1 14V2M6 14V5M11 14V7M16 14V8.5M21 14V9.5"/></svg><span>CS<span class="flow">Flow</span></span></div>
+    <div class="nav-links">
+      <a href="#tldr">TL;DR</a>
+      <a href="#video">Video</a>
+      <a href="#abstract">Abstract</a>
+      <a href="#interactive">Interactive</a>
+      <a href="#method">Method</a>
+      <a href="#results">Results</a>
+      <a href="#references">References</a>
+      <a href="#bibtex">BibTeX</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============================= HERO ============================= -->
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">arXiv 2606.08833 · cs.CV · 2026</span>
+    <h1 class="title"><span>CS<span class="flow">Flow</span></span></h1>
+    <p class="subtitle">Aligning Flow Matching with Human Contrast Sensitivity</p>
+
+    <p class="authors">
+      <span>Malgorzata Galinska<sup>*</sup></span><span class="sep">·</span>
+      <span>Bart Pogodzinski<sup>*</sup></span><span class="sep">·</span>
+      <span>Jan Eric Lenssen</span>
+    </p>
+    <p class="affil">Max Planck Institute for Informatics, Saarland Informatics Campus</p>
+    <p class="equal-note">* Equal contribution</p>
+
+    <div class="links-row">
+      <a class="pill primary" href="https://arxiv.org/abs/2606.08833" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+        Paper (arXiv)
+      </a>
+      <a class="pill" href="https://github.com/gosiagal/CSFlow" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.58.1.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.04-.72.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.75 2.7 1.25 3.36.96.1-.75.4-1.25.72-1.54-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.9 10.9 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.7 5.4-5.27 5.69.41.36.78 1.06.78 2.14 0 1.55-.01 2.79-.01 3.17 0 .31.21.67.8.56A10.52 10.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/></svg>
+        Code
+      </a>
+      <a class="pill" href="#bibtex">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        BibTeX
+      </a>
+    </div>
+
+  </div>
+</header>
+
+<!-- ============================= TL;DR ============================= -->
+<section id="tldr" class="section-pad reveal">
+  <div class="wrap">
+    <span class="eyebrow">Introduction</span>
+    <h2 class="section-title">Our idea: prioritize generation of frequencies that are more important for the human eye</h2>
+    <p class="section-lede">We introduce Contrast Sensitive Flow (CSFlow), a weighting scheme method that prioritizes generation stages that reconstruct spatial frequencies important for the human visual system. We combine two properties: first, that image generation happens in a coarse-to-fine manner, which can be measured through frequency analysis; and second, that the human eye is more sensitive to certain frequency bands. We redistribute several models' precision and capacity accordingly through a weighted inference and fine-tuning. The results: consistently better quantitative results (FID, Inception Score, GenEval) and images that look less flat, "cartoonish" and oversmoothed, and achieve overall better realism.</p>
+  </div>
+</section>
+
+<div class="wrap"><div class="fade-divider"></div></div>
+
+<!-- ============================= TEASER COMPARE ============================= -->
+<section id="teaser-compare" class="section-pad reveal">
+  <div class="wrap">
+    <span class="eyebrow">Baseline vs. CSFlow</span>
+    <h2 class="section-title" style="font-size: clamp(22px,2.6vw,28px);">Better image realism with CSFlow</h2>
+    <p class="section-lede">Drag the handle to compare the baseline image vs. baseline with added CSFlow modification.</p>
+
+    <div class="compare-grid">
+      <div>
+        <div class="compare" data-compare>
+          <div class="compare-layer before"><img src="assets/0_original.png" alt="Baseline"><span class="compare-tag">Baseline</span></div>
+          <div class="compare-layer after"><img src="assets/0_csflow.png" alt="CSFlow"><span class="compare-tag">CSFlow (ours)</span></div>
+          <div class="compare-handle"></div>
+        </div>
+        <p class="compare-caption">PixelGen-XXL/16 · text-to-image · 512×512</p>
+      </div>
+      <div>
+        <div class="compare" data-compare>
+          <div class="compare-layer before"><img src="assets/1_original.png" alt="Baseline"><span class="compare-tag">Baseline</span></div>
+          <div class="compare-layer after"><img src="assets/1_csflow.png" alt="CSFlow"><span class="compare-tag">CSFlow (ours)</span></div>
+          <div class="compare-handle"></div>
+        </div>
+        <p class="compare-caption">PixelGen-XXL/16 · text-to-image · 512×512</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="fade-divider"></div></div>
+
+<!-- ============================= VIDEO ============================= -->
+<section id="video" class="section-pad reveal">
+  <div class="wrap">
+    <span class="eyebrow">Overview</span>
+    <h2 class="section-title">Paper teaser</h2>
+
+    <video class="real-video" controls playsinline preload="metadata">
+      <source src="assets/teaser.mp4" type="video/mp4">
+    </video>
+  </div>
+</section>
+
+<div class="wrap"><div class="fade-divider"></div></div>
+
+<!-- ============================= ABSTRACT ============================= -->
+<section id="abstract" class="section-pad reveal">
+  <div class="wrap">
+    <span class="eyebrow">Abstract</span>
+    <h2 class="section-title">Our two original contributions</h2>
+    <div class="abstract-grid">
+      <div class="abstract-text">
+        <p class="section-lede">CSFlow connects
+          the human eye’s <strong>Contrast Sensitivity Function (CSF)</strong> to the iterative denoising steps
+          of <strong>Flow matching</strong>. Because real-world images concentrate signal at low spatial
+          frequencies, these components reach high signal-to-noise ratio earlier during continuous diffusion than high-frequency components. When generating images with
+          diffusion or flow matching models, this induces a soft autoregressive structure in
+          Fourier space, where coarse image content stabilizes before fine detail. Meanwhile,
+          the human visual system is unequally sensitive to spatial frequencies: very low
+          and very high frequencies require significantly higher contrast to be perceived. We
+          for the first time merge these observations through two contributions: <strong>(1)</strong> a metric
+          that estimates which frequencies are generated at each reverse flow interval and
+          <strong>(2)</strong> timestep weights obtained by aligning the frequencies generated at each noise
+          level with human contrast sensitivity. We validate our contributions experimentally
+          showing that these weights can improve generative performance by lowering FID
+          by up to 12.1%, increasing Inception Score by 2.2% and improving GenEval scores by
+          2.8% using inference-only timestep modification or short fine-tuning. Qualitatively,
+          we find that our CSFlow weights lead to better visual realism and less cartoonish
+          appearance of generated images.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="fade-divider"></div></div>
+
+<!-- ============================= INTERACTIVE ============================= -->
+<section id="interactive" class="section-pad reveal">
+  <div class="wrap">
+    <span class="eyebrow">Contrast Sensitivity Function (CSF)</span>
+    <h2 class="section-title">Test it with your own eyes</h2>
+    <p class="section-lede">Depending on the viewing distance and screen properties, your ability to see certain frequencies changes, which is exactly what CSF measures. This is a Campbell–Robson chart — spatial frequency increases left→right, contrast fades top→bottom. The dashed line is the predicted human visibility threshold: adjust viewing distance and pixel size and watch it shift, computed from the real Barten CSF (Appendix A) and the pixel-to-degree conversion in Appendix D.</p>
+
+    <div class="interactive-panel">
+      <div class="viz-layout">
+        <div>
+          <div class="chart-layout">
+            <div class="y-axis-label">high contrast → low contrast</div>
+            <div class="chart-canvas-wrap">
+              <canvas class="grating" id="liveChart"></canvas>
+            </div>
+          </div>
+          <div class="x-axis-labels"><span>coarse (low f)</span><span>fine detail (high f)</span></div>
+          <div class="legend-note"><span class="legend-swatch"></span> predicted visibility threshold (1 / CSF)</div>
+        </div>
+
+        <div class="controls">
+          <div class="control">
+            <label>Viewing distance <span class="val" id="distVal">50 cm</span></label>
+            <input type="range" id="distSlider" min="20" max="150" value="50" step="1">
+          </div>
+          <div class="control">
+            <label>Pixel size <span class="val" id="pxVal">0.0114 cm</span></label>
+            <input type="range" id="pxSlider" min="0.005" max="0.0405" value="0.0114" step="0.0001">
+          </div>
+          <button class="reset-btn" id="resetBtn">Reset to paper defaults</button>
+          <p class="control-note">Move further from the screen, or shrink the pixels (higher DPI), and the same image frequencies map to higher cycles-per-degree — the threshold curve shifts left, toward coarser image content.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="fade-divider"></div></div>
+
+<!-- ============================= METHOD ============================= -->
+<section id="method" class="section-pad reveal">
+  <div class="wrap">
+    <span class="eyebrow">Method</span>
+    <h2 class="section-title">From frequency analysis to perceptual weights</h2>
+    <p class="section-lede">CSFlow is built in four steps: measure how recoverable each frequency is during generation, measure what is newly generated at each step, weight it by contrast sensitivity, then aggregate the resulting timestep weights.</p>
+
+    <div class="notation-legend" aria-label="Method notation">
+      <div class="notation-item"><span class="notation-symbol">t</span><span class="notation-description">generation timestep</span></div>
+      <div class="notation-item"><span class="notation-symbol">f</span><span class="notation-description">spatial frequency</span></div>
+      <div class="notation-item"><span class="notation-symbol">a<sub>t</sub></span><span class="notation-description">clean-image coefficient</span></div>
+      <div class="notation-item"><span class="notation-symbol">b<sub>t</sub></span><span class="notation-description">noise coefficient</span></div>
+      <div class="notation-item"><span class="notation-symbol">S<sub>f</sub></span><span class="notation-description">image power at frequency f</span></div>
+      <div class="notation-item"><span class="notation-symbol">r(f,t)</span><span class="notation-description">retained clean signal</span></div>
+    </div>
+
+    <p class="section-lede">In the plots, we use <span class="notation-symbol">a<sub>t</sub> = t</span> and <span class="notation-symbol">b<sub>t</sub> = 1-t</span>, therefore, <span class="notation-symbol">t = 0</span> corresponds to pure noise and <span class="notation-symbol">t = 1</span> corresponds to the clean image.</p>
+
+    <div class="method-grid">
+      <div class="method-card">
+        <span class="method-num">01 — retained signal</span>
+        <h3>How recoverable is a frequency, at this noise level?</h3>
+        <p>For a noisy image at time <em>t</em>, we measure the fraction of each frequency's power that comes from the clean image rather than the noise. Near 0, all frequencies are noise-dominated; near 1, most are already settled and won't change much further with continued denoising.</p>
+
+        <div class="eq-block">
+          <div class="eq">
+            <span class="accent">r</span>(f,t) =
+            <span class="frac"><span class="num">a<sub>t</sub>² S<sub>f</sub></span><span class="den">a<sub>t</sub>² S<sub>f</sub> + b<sub>t</sub>²</span></span>
+          </div>
+        </div>
+        <p class="eq-caption">Closed-form retained signal — a normalized SNR per frequency, per timestep.</p>
+
+        <img class="method-figure" src="assets/retained-signal.jpg" alt="Retained signal heatmap from the paper">
+      </div>
+
+      <div class="method-card">
+        <span class="method-num">02 — ∂ₜ retained signal</span>
+        <h3>What frequency is actually being generated, right now?</h3>
+        <p>Retained signal alone only says how "done" a frequency is — not what's changing. So we take the stepwise increase in retained signal over an interval [t, t+Δt] (or its continuous form, ∂ₜr). This is the amount of <em>newly</em> recoverable frequency content at that point in denoising — the true measure of what the model is generating right now.</p>
+
+        <div class="eq-block">
+          <div class="eq" style="font-size: clamp(13px,1.9vw,17px);">
+            ∂ₜ<span class="accent">r</span>(f,t,Δt) = r(f,t+Δt) − r(f,t)
+          </div>
+        </div>
+        <p class="eq-caption">Stepwise information gain — how much of frequency f becomes newly recoverable over [t, t+Δt].</p>
+
+        <img class="method-figure" src="assets/delta-retained-signal.jpg" alt="Change in retained signal heatmap from the paper">
+      </div>
+
+      <div class="method-card">
+        <span class="method-num">03 — CSF-weighted ∂ₜ retained signal</span>
+        <h3>Emphasize perceptually important frequency content</h3>
+        <p>We combine the newly recoverable content at each step with the Contrast Sensitivity Function. This emphasizes frequency bands that are most visible to people.</p>
+
+        <div class="eq-block">
+          <div class="eq" style="font-size: clamp(12.5px,1.8vw,15px);">
+            <span class="accent">s</span>(f,t) = ∂ₜr(f,t) · CSF(f)
+          </div>
+        </div>
+        <p class="eq-caption">CSF-weighted newly recoverable frequency content.</p>
+        <img class="method-figure" src="assets/csf-delta-retained-signal.jpg" alt="CSF-weighted change in retained signal heatmap from the paper">
+      </div>
+
+      <div class="method-card weights-card">
+        <span class="method-num">04 — timestep weights</span>
+        <h3>Allocate precision where it matters most</h3>
+        <p>We average the CSF-weighted frequency content over each timestep and normalize across the trajectory. Intervals with more perceptually important content later receive more finetuning attention or a denser inference grid.</p>
+
+        <div class="eq-block">
+          <div class="eq" style="font-size: clamp(12.5px,1.8vw,15px);">
+            <span class="accent">w</span>(t) ∝ <span style="font-style:italic; color:#6b6b68;">avg over Ω of</span> s(f,t)
+          </div>
+        </div>
+        <p class="eq-caption">Final perceptual timestep weights.</p>
+        <img class="method-figure" src="assets/timestep-weights.jpg" alt="CSFlow timestep weights from the paper">
+      </div>
+    </div>
+
+    <p class="result-note" style="margin-top:24px;">
+      At inference, the resulting weights reshape the timestep grid — we allocate smaller steps where perceptually important frequencies emerge. In training, we bias which noise levels get sampled more often.
+    </p>
+  </div>
+</section>
+
+<div class="wrap"><div class="fade-divider"></div></div>
+
+<!-- ============================= RESULTS ============================= -->
+<section id="results" class="section-pad reveal">
+  <div class="wrap">
+    <span class="eyebrow">Results</span>
+    <h2 class="section-title">Consistent gains, training-free or with a short fine-tune</h2>
+    <p class="section-lede">We evaluate on pixel-space flow matching models — PixelGen, PixelREPA and JiT. We compare our method to two other perceptual weighting methods: P2 and MinSNR, adapted to our setup. For CSFlow, both inference-only reweighting and weighted fine-tuning help independently, and best when combined.</p>
+
+    <div class="table-wrap">
+      <table>
+        <caption>Reference baselines. Text-to-image uses BLIP3o @ 512×512; class-to-image uses ImageNet 256×256. Values are mean ± standard deviation.</caption>
+        <thead>
+          <tr><th>Method</th><th><span class="parameter-symbol">α₁</span></th><th><span class="parameter-symbol">α₂</span></th><th>GenEval ↑</th><th>FID ↓</th><th>IS ↑</th></tr>
+        </thead>
+        <tbody>
+          <tr class="section-row"><td colspan="6">PixelGen-XXL/16 · text-to-image</td></tr>
+          <tr><td>Baseline (timeshift 3.0)</td><td>–</td><td>–</td><td>0.791 ± 0.0018</td><td>–</td><td>–</td></tr>
+          <tr><td>Baseline (uniform)</td><td>–</td><td>–</td><td>0.791 ± 0.0041</td><td>–</td><td>–</td></tr>
+          <tr class="section-row"><td colspan="6">PixelREPA · class-to-image</td></tr>
+          <tr><td>Baseline (uniform)</td><td>–</td><td>–</td><td>–</td><td>1.81 ± 0.015</td><td>316.6 ± 1.15</td></tr>
+          <tr class="section-row"><td colspan="6">JiT-H/16 · class-to-image</td></tr>
+          <tr><td>Baseline (uniform)</td><td>–</td><td>–</td><td>–</td><td>1.89 ± 0.011</td><td>297.2 ± 1.70</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="results-subsection">Inference modification</h3>
+    <div class="table-wrap">
+      <table>
+        <caption>Inference-only model modification. Blue rows are CSFlow; bold values are the best metric for each model in this experiment.</caption>
+        <thead>
+          <tr><th>Method</th><th><span class="parameter-symbol">α₁</span></th><th><span class="parameter-symbol">α₂</span></th><th>GenEval ↑</th><th>FID ↓</th><th>IS ↑</th></tr>
+        </thead>
+        <tbody>
+          <tr class="section-row"><td colspan="6">PixelGen-XXL/16 · text-to-image</td></tr>
+          <tr><td>P2</td><td>–</td><td>0.7</td><td>0.792 ± 0.0040</td><td>–</td><td>–</td></tr>
+          <tr><td>MinSNR</td><td>–</td><td>0.4</td><td>0.788 ± 0.0048</td><td>–</td><td>–</td></tr>
+          <tr class="ours"><td>CSFlow</td><td>–</td><td>1.0</td><td class="best-cell">0.798 ± 0.0025</td><td>–</td><td>–</td></tr>
+          <tr class="section-row"><td colspan="6">PixelREPA · class-to-image</td></tr>
+          <tr><td>P2</td><td>–</td><td>0.5</td><td>–</td><td>1.62 ± 0.004</td><td>316.7 ± 2.34</td></tr>
+          <tr><td>MinSNR</td><td>–</td><td>0.4</td><td>–</td><td>1.68 ± 0.009</td><td class="best-cell">320.9 ± 0.65</td></tr>
+          <tr class="ours"><td>CSFlow</td><td>–</td><td>0.5</td><td>–</td><td class="best-cell">1.59 ± 0.005</td><td>320.8 ± 2.33</td></tr>
+          <tr class="section-row"><td colspan="6">JiT-H/16 · class-to-image</td></tr>
+          <tr><td>P2</td><td>–</td><td>0.3</td><td>–</td><td>1.84 ± 0.011</td><td>297.4 ± 1.76</td></tr>
+          <tr><td>MinSNR</td><td>–</td><td>0.3</td><td>–</td><td>1.84 ± 0.011</td><td class="best-cell">302.6 ± 0.86</td></tr>
+          <tr class="ours"><td>CSFlow</td><td>–</td><td>0.4</td><td>–</td><td class="best-cell">1.80 ± 0.010</td><td>299.7 ± 1.79</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="results-subsection">Finetuning modification</h3>
+    <div class="table-wrap">
+      <table>
+        <caption>Finetuning-only model modification. Blue rows are CSFlow; bold values are the best metric for each model in this experiment.</caption>
+        <thead>
+          <tr><th>Method</th><th><span class="parameter-symbol">α₁</span></th><th><span class="parameter-symbol">α₂</span></th><th>GenEval ↑</th><th>FID ↓</th><th>IS ↑</th></tr>
+        </thead>
+        <tbody>
+          <tr class="section-row"><td colspan="6">PixelGen-XXL/16 · text-to-image</td></tr>
+          <tr><td>Baseline</td><td>1.0</td><td>–</td><td>0.789 ± 0.0024</td><td>–</td><td>–</td></tr>
+          <tr><td>P2</td><td>1.0</td><td>–</td><td>0.809 ± 0.0031</td><td>–</td><td>–</td></tr>
+          <tr><td>MinSNR</td><td>1.0</td><td>–</td><td>0.786 ± 0.0011</td><td>–</td><td>–</td></tr>
+          <tr class="ours"><td>CSFlow</td><td>1.0</td><td>–</td><td class="best-cell">0.810 ± 0.0004</td><td>–</td><td>–</td></tr>
+          <tr class="section-row"><td colspan="6">JiT-H/16 · class-to-image</td></tr>
+          <tr><td>Baseline</td><td>1.0</td><td>–</td><td>–</td><td>1.89 ± 0.019</td><td>294.1 ± 1.99</td></tr>
+          <tr><td>P2</td><td>1.0</td><td>–</td><td>–</td><td class="best-cell">1.86 ± 0.021</td><td class="best-cell">298.9 ± 1.39</td></tr>
+          <tr><td>MinSNR</td><td>1.0</td><td>–</td><td>–</td><td>1.90 ± 0.013</td><td>290.8 ± 0.94</td></tr>
+          <tr class="ours"><td>CSFlow</td><td>1.0</td><td>–</td><td>–</td><td>1.89 ± 0.005</td><td>299.2 ± 1.78</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="results-subsection">Finetuning + inference modification</h3>
+    <div class="table-wrap">
+      <table>
+        <caption>Combined finetuning and inference model modification. Blue rows are CSFlow; bold values are the best metric for each model in this experiment.</caption>
+        <thead>
+          <tr><th>Method</th><th><span class="parameter-symbol">α₁</span></th><th><span class="parameter-symbol">α₂</span></th><th>GenEval ↑</th><th>FID ↓</th><th>IS ↑</th></tr>
+        </thead>
+        <tbody>
+          <tr class="section-row"><td colspan="6">PixelGen-XXL/16 · text-to-image</td></tr>
+          <tr><td>P2</td><td>1.0</td><td>1.0</td><td>0.806 ± 0.0005</td><td>–</td><td>–</td></tr>
+          <tr><td>MinSNR</td><td>1.0</td><td>0.7</td><td>0.788 ± 0.0013</td><td>–</td><td>–</td></tr>
+          <tr class="ours"><td>CSFlow</td><td>0.8</td><td>0.7</td><td class="best-cell">0.813 ± 0.0022</td><td>–</td><td>–</td></tr>
+          <tr class="section-row"><td colspan="6">JiT-H/16 · class-to-image</td></tr>
+          <tr><td>P2</td><td>1.0</td><td>0.4</td><td>–</td><td class="best-cell">1.78 ± 0.015</td><td>302.9 ± 1.03</td></tr>
+          <tr><td>MinSNR</td><td>1.0</td><td>0.2</td><td>–</td><td>1.86 ± 0.021</td><td>291.6 ± 0.73</td></tr>
+          <tr class="ours"><td>CSFlow</td><td>0.4</td><td>0.4</td><td>–</td><td class="best-cell">1.78 ± 0.020</td><td class="best-cell">303.5 ± 1.38</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="result-note">Interpolation parameters <span class="parameter-symbol">α₁</span> and <span class="parameter-symbol">α₂</span> control the weighting function by combining it with the baseline weight function: <span class="notation-symbol">w(t) = α₁ w_modified(t) + (1-α₁) w_baseline(t)</span> for finetuning and <span class="notation-symbol">w(t) = α₂ w_modified(t) + (1-α₂) w_baseline(t)</span> for inference.</p>
+  </div>
+</section>
+
+<div class="wrap"><div class="fade-divider"></div></div>
+
+<!-- ============================= REFERENCES ============================= -->
+<section id="references" class="section-pad reveal">
+  <div class="wrap">
+    <span class="eyebrow">References</span>
+    <h2 class="section-title">Work cited on this page</h2>
+
+    <div class="references-grid">
+      <div class="references-group">
+        <h3>Models</h3>
+        <ul class="references-list">
+          <li>Ma, Xu, and Zhang. <a href="https://arxiv.org/abs/2602.02493" target="_blank" rel="noopener">PixelGen: Pixel Diffusion Beats Latent Diffusion with Perceptual Loss</a>. arXiv:2602.02493, 2026.</li>
+          <li>Li and He. <a href="https://arxiv.org/abs/2511.13720" target="_blank" rel="noopener">Back to Basics: Let Denoising Generative Models Denoise</a>. arXiv:2511.13720, 2025. (JiT)</li>
+          <li>Shin, Kim, and Shim. <a href="https://arxiv.org/abs/2603.14366" target="_blank" rel="noopener">Representation Alignment for Just Image Transformers Is Not Easier than You Think</a>. arXiv:2603.14366, 2026. (PixelREPA)</li>
+        </ul>
+      </div>
+
+      <div class="references-group">
+        <h3>Comparison Methods</h3>
+        <ul class="references-list">
+          <li>Choi et al. <a href="https://arxiv.org/abs/2204.00227" target="_blank" rel="noopener">Perception Prioritized Training of Diffusion Models</a>. CVPR, 2022. (P2)</li>
+          <li>Hang et al. <a href="https://arxiv.org/abs/2303.09556" target="_blank" rel="noopener">Efficient Diffusion Training via Min-SNR Weighting Strategy</a>. ICCV, 2023.</li>
+        </ul>
+      </div>
+
+      <div class="references-group">
+        <h3>Perception And Evaluation</h3>
+        <ul class="references-list">
+          <li>Barten. <a href="https://doi.org/10.1117/12.537476" target="_blank" rel="noopener">Formula for the Contrast Sensitivity of the Human Eye</a>. Proceedings of SPIE, 2003.</li>
+          <li>Ghosh, Hajishirzi, and Schmidt. <a href="https://arxiv.org/abs/2310.11513" target="_blank" rel="noopener">GenEval: An Object-Focused Framework for Evaluating Text-to-Image Alignment</a>. NeurIPS, 2023.</li>
+          <li>Heusel et al. <a href="https://arxiv.org/abs/1706.08500" target="_blank" rel="noopener">GANs Trained by a Two Time-Scale Update Rule Converge to a Local Nash Equilibrium</a>. NeurIPS, 2017. (FID)</li>
+          <li>Salimans et al. <a href="https://arxiv.org/abs/1606.03498" target="_blank" rel="noopener">Improved Techniques for Training GANs</a>. NeurIPS, 2016. (Inception Score)</li>
+        </ul>
+      </div>
+
+      <div class="references-group">
+        <h3>Teaser Video</h3>
+        <ul class="references-list">
+          <li>Footage from Xiao, Chao, Yariv, and Wetzstein. <a href="https://howardxiao.ca/speed/" target="_blank" rel="noopener">Spectral Progressive Diffusion for Efficient Image and Video Generation</a>. arXiv:2605.18736, 2026.</li>
+        </ul>
+        <p class="reference-note">Used in the paper teaser video (0:27-0:36).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="fade-divider"></div></div>
+
+<!-- ============================= BIBTEX ============================= -->
+<section id="bibtex" class="section-pad reveal">
+  <div class="wrap">
+    <span class="eyebrow">Cite this work</span>
+    <h2 class="section-title">BibTeX</h2>
+
+    <div class="bib-block">
+      <button class="copy-btn" id="copyBtn">Copy</button>
+      <pre id="bibText"><span class="kw">@misc</span>{csflow2026,
+      title={<span class="str">CSFlow: Aligning Flow Matching with Human Contrast Sensitivity</span>},
+      author={Malgorzata Galinska and Bart Pogodzinski and Jan Eric Lenssen},
+      year={2026},
+      url={<span class="str">https://arxiv.org/abs/2606.08833</span>},
+}</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= FOOTER ============================= -->
+<footer>
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-col">
+        <h4>Paper</h4>
+        <div class="footer-authors">
+          <a href="https://arxiv.org/abs/2606.08833" target="_blank" rel="noopener">arXiv 2606.08833 ↗</a>
+          <a href="https://github.com/gosiagal/CSFlow" target="_blank" rel="noopener">Code on GitHub ↗</a>
+        </div>
+      </div>
+      <div class="footer-col">
+        <h4>Contact</h4>
+        <div class="footer-authors">
+          <a href="mailto:mgalinsk@mpi-inf.mpg.de">mgalinsk@mpi-inf.mpg.de</a>
+          <a href="mailto:bpogodzi@mpi-inf.mpg.de">bpogodzi@mpi-inf.mpg.de</a>
+          <a href="mailto:jlenssen@mpi-inf.mpg.de">jlenssen@mpi-inf.mpg.de</a>
+        </div>
+      </div>
+      <div class="footer-col">
+        <h4>Affiliation</h4>
+        <p style="margin:0; font-size:13px;">Max Planck Institute for Informatics<br>Saarland Informatics Campus</p>
+      </div>
+    </div>
+    <p class="footer-note">Jan Eric Lenssen and Bart Pogodziński are supported by the German Research Foundation (DFG) — project 556415750, Emmy Noether Programme: Spatial Modeling and Reasoning.</p>
+  </div>
+</footer>
+
+<script>
+/* ========================================================================
+   Barten Contrast Sensitivity Function — identical to the paper's Appendix A
+   (Eq. 9–14). Drives both Campbell–Robson charts below, so every curve on
+   this page is real, not decorative.
+   ======================================================================== */
+const CSF_PARAMS = {
+  k: 3.0, T: 0.1,
+  X0: 60, Xmax: 12, Nmax: 15,
+  n: 0.03, p: 1.2e6, E: 500,
+  phi0: 3e-8, u0: 7,
+  sigma: 0.5/60
+};
+
+function Mopt(f, sigma){ return Math.exp(-2 * Math.PI*Math.PI * sigma*sigma * f*f); }
+
+function csf(f){
+  const { k, T, X0, Xmax, Nmax, n, p, E, phi0, u0, sigma } = CSF_PARAMS;
+  if (f <= 0) return 0;
+  const mopt = Mopt(f, sigma);
+  const term1 = (2/T) * ( 1/(X0*X0) + 1/(Xmax*Xmax) + (f*f)/(Nmax*Nmax) );
+  const denomInner = 1 - Math.exp(-Math.pow(f/u0, 2));
+  const term2 = (1/(n*p*E)) + (phi0 / Math.max(denomInner, 1e-9));
+  const bracket = term1 * term2;
+  if (bracket <= 0) return 0;
+  return (mopt / k) * Math.pow(bracket, -0.5);
+}
+
+// cycles/pixel -> cycles/degree, per Appendix D
+function cpdFromCpp(fCpp, pixelSizeCm, viewingDistCm){
+  const thetaPix = 2 * Math.atan(pixelSizeCm / (2*viewingDistCm)) * (180/Math.PI);
+  return fCpp / thetaPix;
+}
+
+/* ---------- Campbell–Robson chart renderer ---------- */
+const FMIN_CPP = 0.002, FMAX_CPP = 0.5;
+const CMAX = 1.0, DECADES = 3.0;
+
+function computeChirpPhases(W){
+  const phases = new Float64Array(W);
+  let phase = 0;
+  for(let x=0; x<W; x++){
+    const t = x/W;
+    const f = FMIN_CPP * Math.pow(FMAX_CPP/FMIN_CPP, t);
+    phase += 2*Math.PI*f;
+    phases[x] = phase;
+  }
+  return phases;
+}
+
+function drawGrating(canvas, pixelSizeCm, viewingDistCm){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+  if(cssW === 0 || cssH === 0) return;
+  const W = Math.round(cssW*dpr), H = Math.round(cssH*dpr);
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const imgData = ctx.createImageData(W, H);
+  const data = imgData.data;
+  const phases = computeChirpPhases(W);
+
+  for(let y=0; y<H; y++){
+    const contrast = CMAX * Math.pow(10, -DECADES * (1 - y/H));
+    const rowStart = y*W*4;
+    for(let x=0; x<W; x++){
+      const g = Math.sin(phases[x]);
+      const val = 128 + 127*contrast*g;
+      const idx = rowStart + x*4;
+      data[idx] = val; data[idx+1] = val; data[idx+2] = val; data[idx+3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // overlay predicted visibility threshold curve
+  const tcMin = CMAX * Math.pow(10, -DECADES);
+  const pts = [];
+  for(let x=0; x<=W; x+=Math.max(1, Math.round(W/300))){
+    const t = x/W;
+    const fCpp = FMIN_CPP * Math.pow(FMAX_CPP/FMIN_CPP, t);
+    const fCpd = cpdFromCpp(fCpp, pixelSizeCm, viewingDistCm);
+    const csfVal = csf(fCpd);
+    let tc = csfVal > 0 ? 1/csfVal : CMAX;
+    tc = Math.min(Math.max(tc, tcMin), CMAX);
+    let yFrac = 1 + Math.log10(tc/CMAX)/DECADES;
+    yFrac = Math.min(Math.max(yFrac, 0), 1);
+    pts.push([x, yFrac*H]);
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  pts.forEach(p => ctx.lineTo(p[0], p[1]));
+  ctx.lineTo(pts[pts.length-1][0], H);
+  ctx.lineTo(pts[0][0], H);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(30,63,224,0.09)';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  pts.forEach(p => ctx.lineTo(p[0], p[1]));
+  ctx.lineWidth = 2*dpr;
+  ctx.strokeStyle = '#1e3fe0';
+  ctx.setLineDash([7*dpr, 5*dpr]);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* ---------- Interactive chart ---------- */
+const distSlider = document.getElementById('distSlider');
+const pxSlider = document.getElementById('pxSlider');
+const distVal = document.getElementById('distVal');
+const pxVal = document.getElementById('pxVal');
+const resetBtn = document.getElementById('resetBtn');
+const liveCanvas = document.getElementById('liveChart');
+
+function drawLive(){
+  const dist = parseFloat(distSlider.value);
+  const px = parseFloat(pxSlider.value);
+  distVal.textContent = dist + ' cm';
+  pxVal.textContent = px.toFixed(4) + ' cm';
+  drawGrating(liveCanvas, px, dist);
+}
+
+distSlider.addEventListener('input', drawLive);
+pxSlider.addEventListener('input', drawLive);
+resetBtn.addEventListener('click', ()=>{
+  distSlider.value = 50;
+  pxSlider.value = 0.0114;
+  drawLive();
+});
+
+/* ---------- Before/after compare sliders ---------- */
+document.querySelectorAll('[data-compare]').forEach(el=>{
+  const after = el.querySelector('.after');
+  const handle = el.querySelector('.compare-handle');
+  let dragging = false;
+  function setPos(clientX){
+    const rect = el.getBoundingClientRect();
+    let pct = ((clientX - rect.left) / rect.width) * 100;
+    pct = Math.max(2, Math.min(98, pct));
+    after.style.clipPath = `inset(0 0 0 ${pct}%)`;
+    handle.style.left = pct + '%';
+  }
+  el.addEventListener('pointerdown', (e)=>{ dragging = true; el.setPointerCapture(e.pointerId); setPos(e.clientX); });
+  el.addEventListener('pointermove', (e)=>{ if(dragging) setPos(e.clientX); });
+  el.addEventListener('pointerup', ()=>{ dragging = false; });
+  el.addEventListener('pointerleave', ()=>{ dragging = false; });
+});
+
+/* ---------- Copy BibTeX ---------- */
+document.getElementById('copyBtn').addEventListener('click', ()=>{
+  const text = document.getElementById('bibText').innerText;
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied ✓';
+    btn.classList.add('copied');
+    setTimeout(()=>{ btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+  });
+});
+
+/* ---------- Scroll reveal ---------- */
+const revealEls = document.querySelectorAll('.reveal');
+if('IntersectionObserver' in window && revealEls.length){
+  const revealObserver = new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){
+        entry.target.classList.add('in-view');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' });
+  revealEls.forEach(el => revealObserver.observe(el));
+} else {
+  revealEls.forEach(el => el.classList.add('in-view'));
+}
+
+/* ---------- Init ---------- */
+drawLive();
+let resizeTimer;
+window.addEventListener('resize', ()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(()=>{ drawLive(); }, 120);
+});
+</script>
+
+</body>
+</html>
