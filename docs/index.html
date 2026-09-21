@@ -364,8 +364,8 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
 <section id="tldr" class="section-pad reveal">
   <div class="wrap">
     <span class="eyebrow">TL;DR</span>
-    <h2 class="section-title">Our idea: prioritize generation of frequencies that are more important for the human eye</h2>
-    <p class="section-lede">We introduce Contrast Sensitive Flow (CSFlow), a weighting scheme method that prioritizes generation stages that reconstruct spatial frequencies important for the human visual system. We combine two properties: first, that image generation happens in a coarse-to-fine manner, which can be measured through frequency analysis; and second, that the human eye is more sensitive to certain frequency bands. We redistribute several models' precision and capacity accordingly through a weighted inference and fine-tuning. The results: consistently better quantitative results (FID, GenEval) and images that look less flat, "cartoonish" and oversmoothed, and achieve overall better realism.</p>
+    <h2 class="section-title">Our idea: prioritize the visually important generation stages</h2>
+    <p class="section-lede">We introduce <b>Contrast Sensitive Flow</b> (CSFlow), a weighting scheme method for flow matching that prioritizes reconstruction of frequencies that are more important for the human eye. We combine two properties: first, that pixel-space image generation happens in a <b>coarse-to-fine</b> manner, which can be measured through frequency analysis; and second, that the human eye is more sensitive to certain <b>frequency bands</b>. We redistribute several models' precision and capacity accordingly through a <b>weighted inference and fine-tuning</b>. The results: consistently better quantitative results (FID, GenEval) and images that look less flat, "cartoonish" and oversmoothed, and achieve overall better realism.</p>
   </div>
 </section>
 
@@ -389,10 +389,10 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
 <section id="abstract" class="section-pad reveal">
   <div class="wrap">
     <span class="eyebrow">Abstract</span>
-    <h2 class="section-title">Paper abstract</h2>
+    <h2 class="section-title">More detailed overview</h2>
     <div class="abstract-grid">
       <div class="abstract-text">
-        <p class="section-lede">We introduce Contrast Sensitive Flow (CSFlow), a weighting scheme that connects the human eye's Contrast Sensitivity Function (CSF) to the iterative denoising steps of flow matching. Because real-world images concentrate signal at low spatial frequencies, these components reach high signal-to-noise ratio earlier during continuous diffusion than high-frequency components. When generating images with diffusion or flow matching models, this induces a soft autoregressive structure in Fourier space, where coarse image content stabilizes before fine detail. Meanwhile, the human visual system is unequally sensitive to spatial frequencies: very low and very high frequencies require significantly higher contrast to be perceived. We for the first time merge these observations through two contributions: (1) a metric that estimates which frequencies are generated at each reverse flow interval and (2) timestep weights obtained by aligning the frequencies generated at each noise level with human contrast sensitivity. We validate our contributions experimentally showing that these weights can improve generative performance by lowering FID by up to 12.15%, increasing Inception Score by up to 3.2% and improving GenEval scores by up to 3.0% using inference-only timestep modification or short fine-tuning. Qualitatively, we find that our CSFlow weights lead to better visual realism and less cartoonish appearance of generated images. In a two-alternative forced-choice study, participants preferred CSFlow generations over the baseline in 65% of comparisons.</p>
+        <p class="section-lede">Contrast Sensitive Flow (CSFlow) is a weighting scheme that connects the human eye's Contrast Sensitivity Function (CSF) to the iterative denoising steps of flow matching. Because real-world images concentrate signal at low spatial frequencies, these components reach high signal-to-noise ratio earlier during continuous diffusion than high-frequency components. When generating images with diffusion or flow matching models, this induces a soft autoregressive structure in Fourier space, where coarse image content stabilizes before fine detail. Meanwhile, the human visual system is unequally sensitive to spatial frequencies: very low and very high frequencies require significantly higher contrast to be perceived. We for the first time merge these observations through two contributions: <b>(1)</b> a metric that estimates which frequencies are generated at each reverse flow interval and <b>(2)</b> timestep weights obtained by aligning the frequencies generated at each noise level with human contrast sensitivity. We validate our contributions experimentally showing that these weights can improve generative performance by lowering FID by up to 12.15%, increasing Inception Score by up to 3.2% and improving GenEval scores by up to 3.0% using inference-only timestep modification or short fine-tuning. Qualitatively, we find that our CSFlow weights lead to better visual realism and less cartoonish appearance of generated images. In a two-alternative forced-choice study, participants preferred CSFlow generations over the baseline in 65% of comparisons.</p>
       </div>
     </div>
   </div>
@@ -405,7 +405,7 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
   <div class="wrap">
     <span class="eyebrow">Contrast Sensitivity Function (CSF)</span>
     <h2 class="section-title">Test it with your own eyes</h2>
-    <p class="section-lede">Depending on the viewing distance and screen properties, your ability to see certain frequencies changes, which is exactly what CSF measures. This is a Campbell–Robson chart — spatial frequency increases left→right, contrast fades top→bottom. The dashed line is the predicted human visibility threshold: adjust viewing distance and pixel size and watch it shift, computed from the real Barten CSF (Appendix A) and the pixel-to-degree conversion in Appendix D.</p>
+    <p class="section-lede">Depending on the viewing distance and displayed image size, your ability to see certain frequencies changes, which is exactly what CSF measures. This is a Campbell–Robson chart — spatial frequency increases left→right, contrast fades top→bottom. The dashed line is the predicted human visibility threshold: adjust the viewing distance and physical image width and watch it shift, computed from the real Barten CSF (Appendix A) and the visual-angle conversion in Appendix D.</p>
 
     <div class="interactive-panel">
       <div class="viz-layout">
@@ -426,11 +426,11 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
             <input type="range" id="distSlider" min="20" max="150" value="50" step="1">
           </div>
           <div class="control">
-            <label>Pixel size <span class="val" id="pxVal">0.0114 cm</span></label>
-            <input type="range" id="pxSlider" min="0.005" max="0.0405" value="0.0114" step="0.0001">
+            <label>Displayed image width <span class="val" id="widthVal">30 cm</span></label>
+            <input type="range" id="widthSlider" min="10" max="60" value="30" step="1">
           </div>
           <button class="reset-btn" id="resetBtn">Reset to paper defaults</button>
-          <p class="control-note">Move further from the screen, or shrink the pixels (higher DPI), and the same image frequencies map to higher cycles-per-degree — the threshold curve shifts left, toward coarser image content.</p>
+          <p class="control-note">Move further from the screen, or make the displayed image wider, and the same image frequencies map to fewer cycles-per-degree — the visible threshold shifts toward finer detail.</p>
         </div>
       </div>
     </div>
@@ -706,10 +706,10 @@ function csf(f){
   return (mopt / k) * Math.pow(bracket, -0.5);
 }
 
-// cycles/pixel -> cycles/degree, per Appendix D
-function cpdFromCpp(fCpp, pixelSizeCm, viewingDistCm){
-  const thetaPix = 2 * Math.atan(pixelSizeCm / (2*viewingDistCm)) * (180/Math.PI);
-  return fCpp / thetaPix;
+// cycles/image-width -> cycles/degree, per Appendix D
+function cpdFromImageCycles(cyclesPerImage, imageWidthCm, viewingDistCm){
+  const imageAngle = 2 * Math.atan(imageWidthCm / (2*viewingDistCm)) * (180/Math.PI);
+  return cyclesPerImage / imageAngle;
 }
 
 /* ---------- Campbell–Robson chart renderer ---------- */
@@ -721,14 +721,14 @@ function computeChirpPhases(W){
   let phase = 0;
   for(let x=0; x<W; x++){
     const t = x/W;
-    const f = FMIN_CPP * Math.pow(FMAX_CPP/FMIN_CPP, t);
-    phase += 2*Math.PI*f;
+    const cyclesPerPixel = FMIN_CPP * Math.pow(FMAX_CPP/FMIN_CPP, t);
+    phase += 2*Math.PI*cyclesPerPixel;
     phases[x] = phase;
   }
   return phases;
 }
 
-function drawGrating(canvas, pixelSizeCm, viewingDistCm){
+function drawGrating(canvas, imageWidthCm, viewingDistCm){
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
   if(cssW === 0 || cssH === 0) return;
@@ -757,8 +757,9 @@ function drawGrating(canvas, pixelSizeCm, viewingDistCm){
   const pts = [];
   for(let x=0; x<=W; x+=Math.max(1, Math.round(W/300))){
     const t = x/W;
-    const fCpp = FMIN_CPP * Math.pow(FMAX_CPP/FMIN_CPP, t);
-    const fCpd = cpdFromCpp(fCpp, pixelSizeCm, viewingDistCm);
+    const cyclesPerPixel = FMIN_CPP * Math.pow(FMAX_CPP/FMIN_CPP, t);
+    const cyclesPerImage = cyclesPerPixel * cssW;
+    const fCpd = cpdFromImageCycles(cyclesPerImage, imageWidthCm, viewingDistCm);
     const csfVal = csf(fCpd);
     let tc = csfVal > 0 ? 1/csfVal : CMAX;
     tc = Math.min(Math.max(tc, tcMin), CMAX);
@@ -789,25 +790,25 @@ function drawGrating(canvas, pixelSizeCm, viewingDistCm){
 
 /* ---------- Interactive chart ---------- */
 const distSlider = document.getElementById('distSlider');
-const pxSlider = document.getElementById('pxSlider');
+const widthSlider = document.getElementById('widthSlider');
 const distVal = document.getElementById('distVal');
-const pxVal = document.getElementById('pxVal');
+const widthVal = document.getElementById('widthVal');
 const resetBtn = document.getElementById('resetBtn');
 const liveCanvas = document.getElementById('liveChart');
 
 function drawLive(){
   const dist = parseFloat(distSlider.value);
-  const px = parseFloat(pxSlider.value);
+  const imageWidth = parseFloat(widthSlider.value);
   distVal.textContent = dist + ' cm';
-  pxVal.textContent = px.toFixed(4) + ' cm';
-  drawGrating(liveCanvas, px, dist);
+  widthVal.textContent = imageWidth + ' cm';
+  drawGrating(liveCanvas, imageWidth, dist);
 }
 
 distSlider.addEventListener('input', drawLive);
-pxSlider.addEventListener('input', drawLive);
+widthSlider.addEventListener('input', drawLive);
 resetBtn.addEventListener('click', ()=>{
   distSlider.value = 50;
-  pxSlider.value = 0.0114;
+  widthSlider.value = 30;
   drawLive();
 });
 
