@@ -211,6 +211,16 @@ tr.section-row td{ font-family: var(--font-mono); font-size:10.5px; color: var(-
 .metric-row td{ padding-top:16px; padding-bottom:8px; font-family:var(--font-mono); font-style:italic; color:var(--mist-dim); border-bottom:none; }
 .grouped-table thead th{ text-align:center; }
 .grouped-table thead th:first-child{ text-align:left; }
+.grouped-table tbody td:not(:first-child){ text-align:center; }
+.c2i-table{ table-layout:fixed; }
+.c2i-table col.method-col{ width:28%; }
+.c2i-table col.metric-col{ width:18%; }
+.c2i-table thead th:not(:first-child), .c2i-table tbody td:not(:first-child){ text-align:center; }
+.c2i-table thead tr:nth-child(2) th{ text-align:center; }
+.c2i-table thead tr:first-child th:not(:first-child){ text-align:center; }
+.c2i-table thead tr:first-child th:last-child,
+.c2i-table thead tr:nth-child(2) th:last-child,
+.c2i-table tbody tr:not(.metric-row):not(.section-row) td:last-child{ border-left:1px solid var(--line-strong); }
 
 .result-note{ margin-top:16px; font-size:13.5px; color: var(--mist-dim); }
 .results-subsection{ font-family: var(--font-display); font-size:24px; font-weight:600; margin:52px 0 0; color:var(--ink); }
@@ -542,11 +552,15 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
     </div>
 
     <div class="table-wrap" style="margin-top:32px;">
-      <table class="grouped-table">
+      <table class="grouped-table c2i-table">
         <caption>Class-to-image generation on ImageNet at 256×256 with classifier-free guidance. Best result per metric block is bold; blue rows are CSFlow.</caption>
+        <colgroup>
+          <col class="method-col">
+          <col class="metric-col"><col class="metric-col"><col class="metric-col"><col class="metric-col">
+        </colgroup>
         <thead>
           <tr><th rowspan="2">Method</th><th colspan="3">JiT-H/16</th><th>PixelREPA-H/16</th></tr>
-          <tr><th>Inference-only</th><th>Training-only</th><th>Training + inference</th><th>Inference-only</th></tr>
+          <tr><th>Inference-only</th><th>Finetuning-only</th><th>Finetuning + inference</th><th>Inference-only</th></tr>
         </thead>
         <tbody>
           <tr class="metric-row"><td colspan="5">FID ↓</td></tr>
