@@ -208,6 +208,9 @@ tr.method-separator td{ border-top: 2px solid var(--line-strong); }
 .best-cell{ color: var(--ink); font-weight:700; }
 .parameter-symbol{ text-transform:none; }
 tr.section-row td{ font-family: var(--font-mono); font-size:10.5px; color: var(--mist); background: var(--panel-2); text-transform:uppercase; letter-spacing:0.05em; }
+.metric-row td{ padding-top:16px; padding-bottom:8px; font-family:var(--font-mono); font-style:italic; color:var(--mist-dim); border-bottom:none; }
+.grouped-table thead th{ text-align:center; }
+.grouped-table thead th:first-child{ text-align:left; }
 
 .result-note{ margin-top:16px; font-size:13.5px; color: var(--mist-dim); }
 .results-subsection{ font-family: var(--font-display); font-size:24px; font-weight:600; margin:52px 0 0; color:var(--ink); }
@@ -328,7 +331,7 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
       <div>
         <div class="compare" data-compare>
           <div class="compare-layer before"><img src="assets/0_original.png" alt="Baseline"><span class="compare-tag">Baseline</span></div>
-          <div class="compare-layer after"><img src="assets/0_csflow.png" alt="CSFlow"><span class="compare-tag">CSFlow (ours)</span></div>
+          <div class="compare-layer after"><img src="assets/0_finetuned.png" alt="CSFlow"><span class="compare-tag">CSFlow (ours)</span></div>
           <div class="compare-handle"></div>
         </div>
         <p class="compare-caption">PixelGen-XXL/16 · text-to-image · 512×512</p>
@@ -336,7 +339,7 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
       <div>
         <div class="compare" data-compare>
           <div class="compare-layer before"><img src="assets/1_original.png" alt="Baseline"><span class="compare-tag">Baseline</span></div>
-          <div class="compare-layer after"><img src="assets/1_csflow.png" alt="CSFlow"><span class="compare-tag">CSFlow (ours)</span></div>
+          <div class="compare-layer after"><img src="assets/1_finetuned.png" alt="CSFlow"><span class="compare-tag">CSFlow (ours)</span></div>
           <div class="compare-handle"></div>
         </div>
         <p class="compare-caption">PixelGen-XXL/16 · text-to-image · 512×512</p>
@@ -376,26 +379,10 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
 <section id="abstract" class="section-pad reveal">
   <div class="wrap">
     <span class="eyebrow">Abstract</span>
-    <h2 class="section-title">Our two contributions</h2>
+    <h2 class="section-title">Paper abstract</h2>
     <div class="abstract-grid">
       <div class="abstract-text">
-        <p class="section-lede">CSFlow connects
-          the human eye’s <strong>Contrast Sensitivity Function (CSF)</strong> to the iterative denoising steps
-          of <strong>Flow matching</strong>. Because real-world images concentrate signal at low spatial
-          frequencies, these components reach high signal-to-noise ratio earlier during continuous diffusion than high-frequency components. When generating images with
-          diffusion or flow matching models, this induces a soft autoregressive structure in
-          Fourier space, where coarse image content stabilizes before fine detail. Meanwhile,
-          the human visual system is unequally sensitive to spatial frequencies: very low
-          and very high frequencies require significantly higher contrast to be perceived. We
-          for the first time merge these observations through two contributions: <strong>(1)</strong> a metric
-          that estimates which frequencies are generated at each reverse flow interval and
-          <strong>(2)</strong> timestep weights obtained by aligning the frequencies generated at each noise
-          level with human contrast sensitivity. We validate our contributions experimentally
-          showing that these weights can improve generative performance by lowering FID
-          by up to 12.1%, increasing Inception Score by 2.2% and improving GenEval scores by
-          2.8% using inference-only timestep modification or short fine-tuning. Qualitatively,
-          we find that our CSFlow weights lead to better visual realism and less cartoonish
-          appearance of generated images.</p>
+        <p class="section-lede">We introduce Contrast Sensitive Flow (CSFlow), a weighting scheme that connects the human eye's Contrast Sensitivity Function (CSF) to the iterative denoising steps of flow matching. Because real-world images concentrate signal at low spatial frequencies, these components reach high signal-to-noise ratio earlier during continuous diffusion than high-frequency components. When generating images with diffusion or flow matching models, this induces a soft autoregressive structure in Fourier space, where coarse image content stabilizes before fine detail. Meanwhile, the human visual system is unequally sensitive to spatial frequencies: very low and very high frequencies require significantly higher contrast to be perceived. We for the first time merge these observations through two contributions: (1) a metric that estimates which frequencies are generated at each reverse flow interval and (2) timestep weights obtained by aligning the frequencies generated at each noise level with human contrast sensitivity. We validate our contributions experimentally showing that these weights can improve generative performance by lowering FID by up to 12.15%, increasing Inception Score by up to 3.2% and improving GenEval scores by up to 3.0% using inference-only timestep modification or short fine-tuning. Qualitatively, we find that our CSFlow weights lead to better visual realism and less cartoonish appearance of generated images. In a two-alternative forced-choice study, participants preferred CSFlow generations over the baseline in 65% of comparisons.</p>
       </div>
     </div>
   </div>
@@ -534,70 +521,49 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
   <div class="wrap">
     <span class="eyebrow">Results</span>
     <h2 class="section-title">Consistent gains, training-free or with a short fine-tune</h2>
-    <p class="section-lede">We evaluate on pixel-space flow matching models — PixelGen, PixelREPA and JiT. We compare our method to two other perceptual weighting methods: P2 and MinSNR, adapted to our setup. For CSFlow, both inference-only reweighting and weighted fine-tuning help independently, and best when combined.</p>
+    <p class="section-lede">We evaluate PixelGen-XXL/16 on text-to-image generation and JiT-H/16 and PixelREPA-H/16 on class-to-image generation. All values are means ± standard deviations over five runs; the displayed interpolation settings are the best-performing configurations for each method.</p>
 
-    <h3 class="results-subsection">Main text-to-image results</h3>
     <div class="table-wrap">
-      <table>
-        <caption>Effect of our weighting scheme on text-to-image generation at 512×512. Values are mean ± standard deviation.</caption>
-        <thead><tr><th>Model Variant</th><th>Overall ↑</th></tr></thead>
+      <table class="grouped-table">
+        <caption>Text-to-image generation with PixelGen-XXL/16 at 512×512. Best result per column and block is bold; blue rows are CSFlow.</caption>
+        <thead><tr><th>Method</th><th>Inference-only</th><th>Finetuning-only</th><th>Finetuning + inference</th></tr></thead>
         <tbody>
-          <tr class="section-row"><td colspan="2">PixelGen-XXL/16</td></tr>
-          <tr><td>Baseline (timeshift 3.0)</td><td>0.791 ± 0.0018</td></tr>
-          <tr><td>Baseline (uniform)</td><td>0.791 ± 0.0041</td></tr>
-          <tr><td>Baseline finetuning</td><td>0.789 ± 0.0024</td></tr>
-          <tr class="method-separator"><td>+ P2 inference</td><td>0.783 ± 0.0049</td></tr>
-          <tr><td>+ P2 finetuning</td><td>0.809 ± 0.0031</td></tr>
-          <tr><td>+ P2 finetuning + inference</td><td>0.806 ± 0.0005</td></tr>
-          <tr class="method-separator"><td>+ MinSNR inference</td><td>0.786 ± 0.0005</td></tr>
-          <tr><td>+ MinSNR finetuning</td><td>0.786 ± 0.0011</td></tr>
-          <tr><td>+ MinSNR finetuning + inference</td><td>0.758 ± 0.0026</td></tr>
-          <tr class="method-separator ours"><td>+ Our inference</td><td>0.798 ± 0.0025</td></tr>
-          <tr class="ours"><td>+ Our finetuning</td><td class="best-cell">0.810 ± 0.0004</td></tr>
-          <tr class="ours"><td>+ Our finetuning + inference</td><td>0.797 ± 0.0011</td></tr>
+          <tr><td>Baseline (no reweighting)</td><td>0.791 ± 0.0018</td><td>0.789 ± 0.0024</td><td>0.789 ± 0.0024</td></tr>
+          <tr class="section-row"><td colspan="4">Weights applied directly</td></tr>
+          <tr><td>P2</td><td>0.778 ± 0.0024</td><td>0.809 ± 0.0031</td><td class="best-cell">0.806 ± 0.0005</td></tr>
+          <tr><td>MinSNR</td><td>0.765 ± 0.0023</td><td>0.786 ± 0.0011</td><td>0.758 ± 0.0026</td></tr>
+          <tr class="ours"><td>CSFlow (ours)</td><td class="best-cell">0.798 ± 0.0025</td><td class="best-cell">0.810 ± 0.0004</td><td>0.797 ± 0.0011</td></tr>
+          <tr class="section-row"><td colspan="4">Interpolated with the base weights</td></tr>
+          <tr><td>P2</td><td>0.792 ± 0.0040</td><td>0.809 ± 0.0031</td><td>0.806 ± 0.0005</td></tr>
+          <tr><td>MinSNR</td><td>0.788 ± 0.0048</td><td>0.786 ± 0.0011</td><td>0.788 ± 0.0013</td></tr>
+          <tr class="ours"><td>CSFlow (ours)</td><td class="best-cell">0.798 ± 0.0025</td><td class="best-cell">0.810 ± 0.0004</td><td class="best-cell">0.813 ± 0.0022</td></tr>
         </tbody>
       </table>
     </div>
 
-    <h3 class="results-subsection">Additional text-to-image results</h3>
-    <div class="table-wrap">
-      <table>
-        <caption>Additional experiments on text-to-image generation at 512×512. <span class="parameter-symbol">α₁</span> is the finetuning interpolation parameter and <span class="parameter-symbol">α₂</span> is the inference interpolation parameter.</caption>
-        <thead><tr><th>Model Variant</th><th><span class="parameter-symbol">α₁</span></th><th><span class="parameter-symbol">α₂</span></th><th>Overall ↑</th></tr></thead>
+    <div class="table-wrap" style="margin-top:32px;">
+      <table class="grouped-table">
+        <caption>Class-to-image generation on ImageNet at 256×256 with classifier-free guidance. Best result per metric block is bold; blue rows are CSFlow.</caption>
+        <thead>
+          <tr><th rowspan="2">Method</th><th colspan="3">JiT-H/16</th><th>PixelREPA-H/16</th></tr>
+          <tr><th>Inference-only</th><th>Training-only</th><th>Training + inference</th><th>Inference-only</th></tr>
+        </thead>
         <tbody>
-          <tr class="section-row"><td colspan="4">PixelGen-XXL/16</td></tr>
-          <tr><td>Baseline (timeshift 3.0)</td><td>–</td><td>–</td><td>0.791 ± 0.0018</td></tr>
-          <tr><td>Baseline (uniform)</td><td>–</td><td>–</td><td>0.791 ± 0.0041</td></tr>
-          <tr><td>Baseline finetuning</td><td>–</td><td>–</td><td>0.789 ± 0.0024</td></tr>
-          <tr class="method-separator"><td>+ P2 inference</td><td>–</td><td>0.7</td><td>0.792 ± 0.0040</td></tr>
-          <tr class="method-separator"><td>+ MinSNR inference</td><td>–</td><td>0.4</td><td>0.788 ± 0.0048</td></tr>
-          <tr><td>+ MinSNR finetuning + inference</td><td>1.0</td><td>0.7</td><td>0.788 ± 0.0013</td></tr>
-          <tr class="method-separator ours"><td>+ Our finetuning + inference</td><td>0.8</td><td>0.7</td><td class="best-cell">0.813 ± 0.0022</td></tr>
+          <tr class="metric-row"><td colspan="5">FID ↓</td></tr>
+          <tr><td>Baseline (no reweighting)</td><td>1.89 ± 0.011</td><td>1.89 ± 0.019</td><td>1.89 ± 0.019</td><td>1.81 ± 0.015</td></tr>
+          <tr><td>P2</td><td>1.84 ± 0.011</td><td class="best-cell">1.86 ± 0.021</td><td class="best-cell">1.78 ± 0.015</td><td>1.62 ± 0.004</td></tr>
+          <tr><td>MinSNR</td><td>1.84 ± 0.011</td><td>1.90 ± 0.013</td><td>1.86 ± 0.021</td><td>1.68 ± 0.009</td></tr>
+          <tr class="ours"><td>CSFlow (ours)</td><td class="best-cell">1.80 ± 0.010</td><td>1.89 ± 0.005</td><td class="best-cell">1.78 ± 0.020</td><td class="best-cell">1.59 ± 0.005</td></tr>
+          <tr class="metric-row"><td colspan="5">Inception Score ↑</td></tr>
+          <tr><td>Baseline (no reweighting)</td><td>297.2 ± 1.70</td><td>294.1 ± 1.99</td><td>294.1 ± 1.99</td><td>316.6 ± 1.15</td></tr>
+          <tr><td>P2</td><td>297.4 ± 1.76</td><td>298.9 ± 1.39</td><td>302.9 ± 1.03</td><td>316.7 ± 2.34</td></tr>
+          <tr><td>MinSNR</td><td class="best-cell">302.6 ± 0.86</td><td>290.8 ± 0.94</td><td>291.6 ± 0.73</td><td class="best-cell">320.9 ± 0.65</td></tr>
+          <tr class="ours"><td>CSFlow (ours)</td><td>299.7 ± 1.79</td><td class="best-cell">299.2 ± 1.78</td><td class="best-cell">303.5 ± 1.38</td><td>320.8 ± 2.33</td></tr>
         </tbody>
       </table>
     </div>
 
-    <h3 class="results-subsection">Class-to-image results</h3>
-    <div class="table-wrap">
-      <table>
-        <caption>Effect of our weights on class-to-image generation at ImageNet 256×256 with classifier-free guidance. Values are mean ± standard deviation.</caption>
-        <thead><tr><th>Model Variant</th><th><span class="parameter-symbol">α₂</span></th><th>FID ↓</th><th>IS ↑</th></tr></thead>
-        <tbody>
-          <tr class="section-row"><td colspan="4">PixelREPA-H/16</td></tr>
-          <tr><td>Baseline (uniform)</td><td>–</td><td>1.81 ± 0.015</td><td>316.6 ± 1.15</td></tr>
-          <tr class="method-separator"><td>+ P2 inference</td><td>0.5</td><td>1.62 ± 0.004</td><td>316.7 ± 2.34</td></tr>
-          <tr class="method-separator"><td>+ MinSNR inference</td><td>0.4</td><td>1.68 ± 0.009</td><td class="best-cell">320.9 ± 0.65</td></tr>
-          <tr class="method-separator ours"><td>+ Our inference</td><td>0.5</td><td class="best-cell">1.59 ± 0.005</td><td>320.8 ± 2.33</td></tr>
-          <tr class="section-row"><td colspan="4">JiT-H/16</td></tr>
-          <tr><td>Baseline</td><td>–</td><td>1.89 ± 0.011</td><td>297.2 ± 1.70</td></tr>
-          <tr class="method-separator"><td>+ P2 inference</td><td>0.3</td><td>1.84 ± 0.011</td><td>297.4 ± 1.76</td></tr>
-          <tr class="method-separator"><td>+ MinSNR inference</td><td>0.3</td><td>1.84 ± 0.011</td><td class="best-cell">302.6 ± 0.86</td></tr>
-          <tr class="method-separator ours"><td>+ Our inference</td><td>0.4</td><td class="best-cell">1.80 ± 0.010</td><td>299.7 ± 1.79</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <p class="result-note">The paper reports the best <span class="parameter-symbol">α₂</span> for each method. Blue rows mark CSFlow; bold values are the best metric within each model block.</p>
+    <p class="result-note">Interpolation parameters are selected per method as reported in the paper. Blue rows mark CSFlow; bold values are the best result within each metric block.</p>
   </div>
 </section>
 
