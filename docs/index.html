@@ -444,7 +444,7 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
   <div class="wrap">
     <span class="eyebrow">Method</span>
     <h2 class="section-title">From frequency analysis to perceptual weights</h2>
-    <p class="section-lede">CSFlow is built in four steps: measure how recoverable each frequency is during generation, measure what is newly generated at each step, weight it by contrast sensitivity, then aggregate the resulting timestep weights.</p>
+    <p class="section-lede">CSFLow is built on the forward process - iterative noising, and reverted over the time, to analyze how the frequency content changes during denoising. We built it in four steps: <b>(1)</b> measure how recoverable each image-frequency is when image is noised, <b>(2)</b> measure which image-frequencies are reconstructed between the noising-timesteps, <b>(3)</b> weight it by contrast sensitivity, <b>(4)</b> aggregate the resulting timestep weights.</p>
 
     <div class="notation-legend" aria-label="Method notation">
       <div class="notation-item"><span class="notation-symbol">t</span><span class="notation-description">generation timestep</span></div>
@@ -476,8 +476,8 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
 
       <div class="method-card">
         <span class="method-num">02 — ∂ₜ retained signal</span>
-        <h3>What frequency is actually being generated, right now?</h3>
-        <p>Retained signal alone only says how "done" a frequency is — not what's changing. So we take the stepwise increase in retained signal over an interval [t, t+Δt] (or its continuous form, ∂ₜr). This is the amount of <em>newly</em> recoverable frequency content at that point in denoising — the true measure of what the model is generating right now.</p>
+        <h3>What frequency is actually being (de)noised, right now?</h3>
+        <p>Retained signal alone only says how destroyed a frequency is — not what's changing. So we take the stepwise increase in retained signal over an interval [t, t+Δt] (or its continuous form, ∂ₜr). This is the amount of <em>newly</em> recoverable frequency content at that point in denoising — the true measure of what the model is reconstructing right now.</p>
 
         <div class="eq-block">
           <div class="eq" style="font-size: clamp(13px,1.9vw,17px);">
@@ -510,7 +510,7 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
 
         <div class="eq-block">
           <div class="eq" style="font-size: clamp(12.5px,1.8vw,15px);">
-            <span class="accent">w</span>(t) ∝ <span style="font-style:italic; color:#6b6b68;">avg over Ω of</span> s(f,t)
+            <span class="accent">w</span>(t) ∝ <span style="font-style:italic; color:#6b6b68;">avg over frequencies of</span> s(f,t)
           </div>
         </div>
         <p class="eq-caption">Final perceptual timestep weights.</p>
@@ -519,7 +519,7 @@ footer{ border-top:1px solid var(--line); padding:44px 0 56px; }
     </div>
 
     <p class="result-note" style="margin-top:24px;">
-      At inference, the resulting weights reshape the timestep grid — we allocate smaller steps where perceptually important frequencies emerge. In training, we bias which noise levels get sampled more often.
+      At inference, the resulting weights reshape the timestep grid — we allocate smaller steps where perceptually important frequencies are reconstructed. In training, we bias which noise levels get sampled more often.
     </p>
   </div>
 </section>
