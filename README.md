@@ -1,5 +1,30 @@
 # CSFlow: Aligning Flow Matching with Human Contrast Sensitivity
 
+<div align="center">
+  <a href="https://vip.mpi-inf.mpg.de/people/Galinska.html" target="_blank">Malgorzata&nbsp;Galinska</a><sup>*</sup> &ensp; <b>&middot;</b> &ensp;
+  <a href="https://scholar.google.com/citations?user=Xwe4-J0AAAAJ&hl=en" target="_blank">Bart&nbsp;Pogodzinski</a><sup>*</sup> &ensp; <b>&middot;</b> &ensp;
+  <a href="https://scholar.google.com/citations?user=enXCzCgAAAAJ&hl=en" target="_blank">Jan&nbsp;Eric&nbsp;Lenssen</a> <br>
+  Max Planck Institute for Informatics, Saarland Informatics Campus &emsp;<br>
+  <sup>*</sup>Equal Contribution &emsp; <br>
+</div>
+<br/>
+
+<p align="center">
+  <a href="https://arxiv.org/abs/2606.08833">
+    <img src="https://img.shields.io/badge/arXiv-2606.08833-b31b1b.svg">
+  </a>
+  <a href="https://github.com/gosiagal/CSFlow">
+    <img src="https://img.shields.io/badge/GitHub-CSFlow-black.svg?logo=github">
+  </a>
+  <a href="https://gosiagal.github.io/CSFlow/">
+    <img src="https://img.shields.io/badge/Website-CSFlow-blue.svg">
+  </a>
+  <a href="https://huggingface.co/gosiagalinska/CSFlow">
+    <img src="https://img.shields.io/badge/🤗%20Hugging%20Face-Models-yellow.svg">
+  </a>
+
+</p>
+
 <p align="center">
   <img src="teaser_figure.jpg" width="100%">
 </p>
@@ -10,23 +35,11 @@ This project computes CSFlow timestep importance weights, that can be used to bi
 
 ## 1. Overview
 
-The CSF stage lives in [main_gpu.py](main_gpu.py) and produces importance weights file under a results directory. The weighted JiT stage lives under [jit](jit) and consumes the file through CLI arguments such as `--inference_weights_path` and `--train_weights_path`.
+The CSF stage lives in [main_csflow.py](main_csflow.py) and produces importance weights file under a results directory. The weighted JiT stage lives under [jit](jit) and consumes the file through CLI arguments such as `--inference_weights_path` and `--train_weights_path`.
 
 The CSF code does not directly train or sample an image model. It produces a numerical weighting schedule that reflects how much each diffusion timestep should matter based on perceptual frequency sensitivity and retained signal during the forward process. The weights are generated once, then reused across runs, model variants or models that use the same training dataset and noise schedule.
 
-## 2. Required assumptions
-
-For using CSFlow weights with weighted-JiT:
-- Use `imagenet_*.yaml` config for weights generation. The default configuration uses precomputed RAPSD statistics and does not require providing the `dataset.path`.
-- The weights image resolution parameter `image.resolution` and the JiT image resolution must stay consistent.
-
-If you want to create your own config:
-- Note that this implementation uses an inverse-linear noise schedule $x_t = tx_0 + (1-t)\epsilon$: $t=0$ corresponds to noise and $t=1$ corresponds to a clean image. Make sure your model uses the same noise schedule.
-- In the current state, `dataset.type` is either `imagenet` or `blip3o`. If you wish to use a different dataset, create and add a corresponding DataLoader and set the `dataset.path`.
-- `image.resolution` must match the model and dataset you are using.
-- Make sure your assumed viewing conditions are set using `frequencies.pixel_size` and `frequencies.viewing_distance` parameters in the configuration file.
-
-## 3. Generation of CSFlow weights
+## 2. Generation of CSFlow weights
 
 Set the environment:
 ```bash
@@ -78,7 +91,7 @@ Since the weights are calculated over time intervals, there is one less weight v
 ### Figures 
 If the `figures.reproduce_figures` is set to `True`, paper figures will be plotted and saved under the specified figures path.
 
-## 4. Requirements for JiT
+## 3. Requirements for JiT
 
 A suitable conda environment named jit can be created and activated with:
 
@@ -91,7 +104,7 @@ conda activate jit
 
 You will also need ImageNet dataset (available [here](https://www.image-net.org/challenges/LSVRC/2012/2012-downloads.php)) and JiT-H/16 checkpoint (available [here](https://www.dropbox.com/scl/fo/3ken1avtsd81ip67b9qpi/AK218ZNvXKSv74igVvht4PQ?rlkey=14gjrblmljewpl6ygxzlr3njm&st=ffkl77al&e=1&dl=0)).
 
-## 5. Weighted inference in JiT-H/16
+## 4. Weighted inference in JiT-H/16
 
 Once the weight files are generated, you can point JiT at them and generate and evaluate images:
 
@@ -108,9 +121,9 @@ python jit/main_jit.py \
   --inference_weights_path ./results/imagenet_256_steps500/training_weights.pkl
 ```
 
-This script will generate 50K test images, evaluate them against test ImageNet dataset [statistics](jit/fid_stats/jit_in256_stats.npz) - calculate FID and IS, and delete all images afterwards. If you wish to save the images, add the `--keep_generated_images True` flag and images will stay in the output directory.
+This script will generate 50K test images, evaluate them against test ImageNet dataset [statistics](jit/fid_stats/jit_in256_stats.npz) - calculate FID and IS, and delete all images afterwards. If you wish to save the images, add the `--keep_generated_images` flag and images will stay in the output directory.
 
-## 6. Weighted training in JiT-H/16
+## 5. Weighted training in JiT-H/16
 
 For weighted training, enable:
 
@@ -119,6 +132,23 @@ For weighted training, enable:
 --train_weights_path ./results/imagenet_256_steps500/training_weights.pkl
 ```
 
+## 6. Non-default usage
+
+**General modifications:**
+
+- Computing RAPSD: `imagenet_*.yaml` and `blip3o_*.yaml` default configurations use precomputed RAPSD statistics and do not require providing the `dataset.path`. If you want to compute the statistics yourself, you need to have the ImageNet/BLIP3o dataset locally saved and specitfied in the `dataset.path`. The weights image resolution parameter `image.resolution` and the dataset/JiT image resolution must always stay consistent.
+- Changing viewing assumptions: viewing conditions are set using `frequencies.pixel_size` and `frequencies.viewing_distance` parameters in the configuration file (e.g. `imagenet_256.yaml`).
+
+**If you want to use a different dataset:**
+
+- In the current state, `dataset.type` is either `imagenet` or `blip3o`. If you wish to use a different dataset, create and add a corresponding DataLoader and set the `dataset.path` to your designated dataset.
+- Image resolution is set using `image.resolution` parameter in the configuration file.
+
+**If you want to use a different model:**
+
+- Note that this implementation uses an inverse-linear noise schedule $x_t = tx_0 + (1-t)\epsilon$: $t=0$ corresponds to noise and $t=1$ corresponds to a clean image. Make sure your model uses the same noise schedule or change the noise scheduler in the implementation.
+- `image.resolution` must match the model you are using.
+- your model's inference/training algorithm needs to be modified for using CSFlow weights.
 
 ## 7. Additional notes
 
