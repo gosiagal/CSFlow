@@ -16,9 +16,6 @@
   <a href="https://github.com/gosiagal/CSFlow">
     <img src="https://img.shields.io/badge/GitHub-CSFlow-black.svg?logo=github">
   </a>
-  <a href="https://gosiagal.github.io/CSFlow/">
-    <img src="https://img.shields.io/badge/Website-CSFlow-blue.svg">
-  </a>
   <a href="https://huggingface.co/gosiagalinska/CSFlow">
     <img src="https://img.shields.io/badge/🤗%20Hugging%20Face-Models-yellow.svg">
   </a>
@@ -131,6 +128,8 @@ For weighted training, enable:
 --train_weighted True --train_interpolated True
 --train_weights_path ./results/imagenet_256_steps500/training_weights.pkl
 ```
+
+Fine-tuned model weights from our paper are available [here](https://huggingface.co/gosiagalinska/CSFlow/tree/main).
 
 ## 6. Non-default usage
 
