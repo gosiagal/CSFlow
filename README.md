@@ -13,8 +13,8 @@
   <a href="https://arxiv.org/abs/2606.08833">
     <img src="https://img.shields.io/badge/arXiv-2606.08833-b31b1b.svg">
   </a>
-  <a href="https://github.com/gosiagal/CSFlow">
-    <img src="https://img.shields.io/badge/GitHub-CSFlow-black.svg?logo=github">
+  <a href="https://gosiagal.github.io/CSFlow/">
+    <img src="https://img.shields.io/badge/Website-CSFlow-blue.svg">
   </a>
   <a href="https://huggingface.co/gosiagalinska/CSFlow">
     <img src="https://img.shields.io/badge/🤗%20Hugging%20Face-Models-yellow.svg">
